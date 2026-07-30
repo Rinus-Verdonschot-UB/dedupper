@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% block title %}Review results · Dedupper{% endblock %}
+
+{% block content %}
+  <section class="page-heading">
+    <div>
+      <p class="eyebrow">Step 3 of 3 · Review</p>
+      <h1>{{ records|length }} records entered the master dataset.</h1>
+    </div>
+    <div class="heading-actions">
+      <form class="export-form" action="{{ url_for('export', job_id=job_id, dataset='master') }}" method="get">
+        <label for="master-format">Master format</label>
+        <select id="master-format" name="format">
+          <option value="csv">CSV</option>
+          <option value="xlsx">Excel (.xlsx)</option>
+          <option value="ris">RIS</option>
+        </select>
+        <button class="button button-secondary" type="submit">Download master</button>
+      </form>
+      <a class="text-link" href="{{ url_for('download_audit', job_id=job_id) }}">Audit JSON</a>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-header">
+      <div>
+        <p class="source-label">Ingestion audit</p>
+        <h2>Source-by-source record counts</h2>
+      </div>
+      <span class="status status-good">Master created</span>
+    </div>
+    <div class="table-scroll">
+      <table class="audit-table">
+        <thead>
+          <tr>
+            <th>Source</th>
+            <th>Logical items</th>
+            <th>Parsed into master</th>
+            <th>Blank rows</th>
+            <th>Preamble rows</th>
+            <th>Records with warnings</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for report in reports %}
+            <tr>
+              <th>
+                {{ report.filename }}
+                <small>{{ report.tables }} table(s) · {{ report.file_type|upper }}</small>
+              </th>
+              <td>{{ report.logical_items }}</td>
+              <td>{{ report.parsed_records }}</td>
+              <td>{{ report.blank_rows }}</td>
+              <td>{{ report.preamble_rows }}</td>
+              <td>{{ report.record_warnings }}</td>
+              <td>
+                {% if report.logical_items == report.parsed_records %}
+                  <span class="status status-good">Complete</span>
+                {% else %}
+                  <span class="status status-bad">Check</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% if report.warnings %}
+              <tr class="warning-row">
+                <td colspan="7">
+                  {% for warning in report.warnings %}<span>{{ warning }}</span>{% endfor %}
+                </td>
+              </tr>
+            {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="summary-grid">
+    <article class="metric-card">
+      <span>Master records</span>
+      <strong>{{ records|length }}</strong>
+      <small>Before any deletion</small>
+    </article>
+    <article class="metric-card">
+      <span>Duplicate groups</span>
+      <strong>{{ groups|length }}</strong>
+      <small>DOI or compatible-title candidates</small>
+    </article>
+    <article class="metric-card">
+      <span>Records in groups</span>
+      <strong>{{ total_duplicate_records }}</strong>
+      <small>Includes the copies that will be kept</small>
+    </article>
+  </section>
+
+  {% if deduplicated is not none %}
+    <section id="deduplicated-output" class="completion-card" tabindex="-1">
+      <div>
+        <p class="eyebrow">Deduplicated output ready</p>
+        <h2>{{ deduplicated|length }} records retained.</h2>
+        <p>
+          {{ records|length - deduplicated|length }} duplicate record(s) removed.
+          The untouched master dataset remains available separately.
+        </p>
+      </div>
+      <form class="export-form export-form-on-dark" action="{{ url_for('export', job_id=job_id, dataset='deduplicated') }}" method="get">
+        <label for="deduplicated-format">Output format</label>
+        <select id="deduplicated-format" name="format">
+          <option value="csv">CSV</option>
+          <option value="xlsx">Excel (.xlsx)</option>
+          <option value="ris">RIS</option>
+        </select>
+        <button class="button button-primary" type="submit">Download deduplicated</button>
+      </form>
+    </section>
+  {% endif %}
+
+  {% if groups %}
+    {% if deduplicated is not none %}
+      <details class="review-toggle">
+        <summary>
+          <span>
+            <strong>Duplicate groups hidden</strong>
+            <small>Your deduplicated result is shown above.</small>
+          </span>
+          <span class="review-toggle-action">Review or change {{ groups|length }} group(s)</span>
+        </summary>
+        <div class="review-toggle-content">
+    {% endif %}
+
+    <form action="{{ url_for('deduplicate', job_id=job_id) }}" method="post">
+      <section class="duplicates-heading">
+        <div>
+          <p class="eyebrow">Candidate matches</p>
+          <h2>Choose one or more records to keep from each group.</h2>
+        </div>
+        <p>
+          The recommended choice favours a valid DOI, then more populated
+          canonical and raw fields. Conflicting DOIs and related publications
+          such as corrections or commentaries are kept separate. A likely
+          protocol is labelled only when it appears beside a matching
+          non-protocol record, and is not recommended automatically.
+        </p>
+      </section>
+
+      {% for group in groups %}
+        <section class="card duplicate-card">
+          <div class="card-header">
+            <div>
+              <p class="source-label">Group {{ loop.index }} · {{ group.record_ids|length }} records</p>
+              <h3>{{ group.methods|join(' + ') }}</h3>
+            </div>
+            {% if 'Fuzzy cleaned title' in group.methods %}
+              <span class="status status-review">Review fuzzy match</span>
+            {% else %}
+              <span class="status status-good">Exact match</span>
+            {% endif %}
+          </div>
+
+          <p class="selection-help" id="selection-help-{{ group.group_id }}">
+            Click to choose one record. Hold Ctrl/Cmd to add or remove individual
+            records, or Shift-click to select a range.
+          </p>
+
+          <div class="record-options" data-record-options>
+            {% for record_id in group.record_ids %}
+              {% set record = by_id[record_id] %}
+              {% set applied_ids = selected_by_group.get(group.group_id, []) %}
+              {% set potential_protocol_ids = group.get('potential_protocol_record_ids', []) %}
+              <label class="record-option {% if record_id == group.recommended_record_id %}recommended{% endif %}">
+                <input
+                  type="checkbox"
+                  name="keep.{{ group.group_id }}"
+                  value="{{ record_id }}"
+                  data-record-selector
+                  aria-describedby="selection-help-{{ group.group_id }}"
+                  {% if (deduplicated is not none and record_id in applied_ids) or (deduplicated is none and record_id == group.recommended_record_id) %}checked{% endif %}
+                >
+                <span class="record-body">
+                  <span class="record-topline">
+                    <strong>{{ record.title or '(No mapped title)' }}</strong>
+                    {% if record_id in potential_protocol_ids or record_id == group.recommended_record_id %}
+                      <span class="record-badges">
+                        {% if record_id in potential_protocol_ids %}
+                          <span class="protocol-flag">Potential protocol</span>
+                        {% endif %}
+                        {% if record_id == group.recommended_record_id %}
+                          <span class="recommendation">Recommended</span>
+                        {% endif %}
+                      </span>
+                    {% endif %}
+                  </span>
+                  <span class="record-meta">
+                    {{ record.first_author or 'No author' }} ·
+                    {{ record.year or 'No year' }} ·
+                    {{ record.journal or 'No journal' }}
+                  </span>
+                  <span class="record-doi">{{ record.doi or 'No DOI' }}</span>
+                  <span class="record-source">
+                    {{ record.source_filename }}
+                    {% if record.source_sheet %} / {{ record.source_sheet }}{% endif %}
+                    · source row {{ record.source_row }}
+                  </span>
+                </span>
+              </label>
+            {% endfor %}
+          </div>
+
+          <details class="match-evidence">
+            <summary>Why these records were grouped</summary>
+            {% for edge in group.edges %}
+              <p>
+                {{ edge.method }}
+                {% if edge.method == 'Fuzzy cleaned title' %}({{ edge.score }}%){% endif %}
+                {% if edge.value %}— {{ edge.value|truncate(130) }}{% endif %}
+              </p>
+            {% endfor %}
+          </details>
+        </section>
+      {% endfor %}
+
+      <div class="sticky-actions">
+        <div>
+          <strong>{% if deduplicated is not none %}Update duplicate decisions{% else %}Apply duplicate decisions{% endif %}</strong>
+          <span>Manual mode keeps every selected record. Automatic mode keeps each recommendation.</span>
+        </div>
+        <div class="button-row">
+          <button class="button button-secondary" name="mode" value="manual" type="submit">
+            Use my selections
+          </button>
+          <button class="button button-primary" name="mode" value="automatic" type="submit">
+            Deduplicate automatically
+          </button>
+        </div>
+      </div>
+    </form>
+
+    {% if deduplicated is not none %}
+        </div>
+      </details>
+    {% endif %}
+  {% else %}
+    <section class="card empty-state">
+      <div class="empty-icon">✓</div>
+      <h2>No compatible DOI or title duplicates were found.</h2>
+      <p>The master dataset is already the final dataset under the current rules.</p>
+    </section>
+  {% endif %}
+{% endblock %}
+
+{% block scripts %}
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+{% endblock %}

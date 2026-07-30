@@ -1,0 +1,148 @@
+# Dedupper
+
+Dedupper is a parsing-first Flask prototype for combining and deduplicating
+scientific article exports. It accepts multiple RIS, numbered PubMed abstract
+TXT, CSV, TSV, XLS and XLSX files, asks the user to verify uncertain tabular
+mappings, builds a complete master dataset, reports per-file ingestion counts,
+and only then proposes duplicate groups.
+
+## What this first version does
+
+- Accepts 1–10 files in one upload (100 MB combined limit).
+- Parses RIS records while retaining repeated tags, continuation lines and the
+  final record even if its `ER` tag is missing.
+- Parses PubMed's numbered plain-text abstract format, including wrapped
+  citations, language notes, affiliations, DOI, PMID and multi-line abstracts.
+- Detects CSV/TSV encoding, delimiter and likely header row.
+- Reads every non-empty worksheet in XLS/XLSX workbooks.
+- Suggests columns for title, publication year, first author/authors, DOI,
+  journal and abstract using header aliases plus value-shape analysis.
+- Requires a human mapping review for every tabular table. The header row can
+  also be corrected and rescanned.
+- Retains every non-empty data row, even when its title or DOI is missing.
+- Preserves all original fields as JSON alongside source file, worksheet and
+  row number.
+- Promotes abstracts from PubMed TXT, RIS `AB`/`N2` tags and mapped tabular
+  columns into a canonical field that survives deduplication.
+- Groups exact normalized DOIs, exact cleaned titles, and high-confidence fuzzy
+  title matches. Different valid DOIs prevent title-based grouping.
+- Keeps related publications such as corrections, errata, commentaries,
+  responses, retractions and expressions of concern separate from the original
+  article, while still allowing duplicate copies of the related publication to
+  match each other.
+- Within an already detected duplicate group, marks a title as a potential
+  protocol only when it has a conventional protocol marker and a highly similar
+  non-protocol companion title. Potential protocols are never selected as the
+  automatic recommendation while a matching non-protocol record is available.
+- Lets the user keep one or several chosen records per group, using
+  Ctrl/Cmd-click or Shift-click for multi-selection, or automatically retain
+  the most informative record (valid DOI first).
+- Collapses candidate groups after either deduplication action and brings the
+  retained-record result and download action directly into view; the groups
+  remain available behind a review toggle.
+- Uses the Maastricht University Library digital house style: Open Sans-style
+  typography, accessible UM navy, orange and light-blue colours, and a clear
+  primary/secondary action hierarchy.
+- Exports both the untouched master and deduplicated datasets as CSV, XLSX or
+  RIS, plus a separate JSON audit file. CSV and XLSX retain the complete raw
+  source-field JSON; RIS contains the standard canonical bibliographic fields.
+- Counts records with normalization warnings per source; record-level warning
+  text is included in the master export.
+
+## Run locally
+
+Python 3.10 or newer is required.
+
+```bash
+cd dedupper
+python -m venv .venv
+source .venv/bin/activate              # Windows: .venv\Scripts\activate
+pip install -r requirements-dev.txt
+flask --app run.py run --debug
+```
+
+Open <http://127.0.0.1:5000>. For a non-development deployment, set a stable
+random `DEDUPPER_SECRET_KEY` and run the app through a production WSGI server.
+
+## Run as a container
+
+The supplied `Containerfile` is compatible with OpenShift's arbitrary user IDs
+and starts Dedupper with Gunicorn on port 8080.
+
+```bash
+podman build -t dedupper:0.5.0 -f Containerfile .
+podman run --rm -p 8080:8080 \
+  -e DEDUPPER_SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')" \
+  -v dedupper-data:/data \
+  dedupper:0.5.0
+```
+
+Open <http://127.0.0.1:8080>.
+
+## Deploy on OpenShift / DSRI
+
+1. Build and push the container image using the DSRI-supported image registry
+   or CI workflow.
+2. Copy `openshift.yaml` and replace
+   `REPLACE_WITH_YOUR_DEDUPPER_IMAGE` with the full image reference.
+3. In the target OpenShift project, create the cookie-signing secret:
+
+   ```bash
+   oc create secret generic dedupper-secret \
+     --from-literal=secret-key="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+   ```
+
+4. Deploy and obtain the HTTPS address:
+
+   ```bash
+   oc apply -f openshift.yaml
+   oc get route dedupper
+   ```
+
+The manifest intentionally uses one replica. Job data is currently stored as
+JSON and uploaded files under `/data/jobs`; the included 2 GiB persistent
+volume keeps that data across pod restarts. Scaling to multiple replicas
+requires shared `ReadWriteMany` storage or replacing `JobStore` with a database
+and object storage. Increase the PVC size or adjust CPU/memory limits if DSRI
+usage warrants it.
+
+## Tests
+
+```bash
+pytest
+```
+
+The tests cover malformed-but-recoverable RIS, repeated RIS tags, CSV preamble
+and blank rows, Dutch headers, gibberish headers inferred from values,
+multi-worksheet XLSX parsing, preservation of unmapped fields, DOI/title
+normalization, DOI conflicts, related-publication safeguards, fuzzy grouping,
+contextual protocol detection, single- and multi-record retention, collapsed
+post-action review and an
+end-to-end Flask upload, PubMed TXT ingestion, abstract preservation and
+CSV/XLSX/RIS export round trips.
+
+## Important interpretation of counts
+
+For tabular files, a **logical item** is every non-empty row after the confirmed
+header. Blank rows and non-empty preamble rows are reported separately. For RIS,
+a logical item is every record delimited by `TY`/`ER`, including a recoverable
+record that reaches end-of-file without `ER`. For PubMed TXT, a logical item is
+every numbered PubMed citation header recognized in the export.
+
+The parser does not reject a logical item merely because a canonical field is
+empty. Therefore `logical items` should equal `parsed into master`; missing or
+malformed mapped values become record-level warnings rather than silent losses.
+
+## Current boundaries
+
+This is deliberately a first version. Jobs are stored as JSON under
+`instance/jobs`, which makes the audit trail inspectable but is not intended
+for multi-user production scale. Fuzzy title grouping is conservative and
+should remain a reviewed candidate process. CSV files with several unrelated
+tables in one file are not automatically split. Old `.xls` files depend on
+`xlrd`; `.xlsx` files use `openpyxl`. TXT ingestion targets PubMed's numbered
+abstract layout rather than arbitrary prose files.
+
+The next engineering step would be a persistent database plus a parser
+validation corpus made from real exports (Scopus, Web of Science, PubMed,
+Embase, PsycINFO, EndNote, Zotero and local institutional formats).

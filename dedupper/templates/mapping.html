@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Verify columns · Dedupper{% endblock %}
+
+{% block content %}
+  <section class="page-heading">
+    <div>
+      <p class="eyebrow">Step 2 of 3 · Verify</p>
+      <h1>Confirm the meaning of each column.</h1>
+    </div>
+    <p>
+      Suggestions use both the header and the values. A low-confidence mapping
+      is deliberately not trusted without your review.
+    </p>
+  </section>
+
+  <form action="{{ url_for('process_mapping', job_id=job_id) }}" method="post">
+    {% for table in tables %}
+      <section class="card mapping-card">
+        <div class="card-header">
+          <div>
+            <p class="source-label">{{ table.filename }}</p>
+            <h2>
+              {% if table.sheet_name %}Worksheet “{{ table.sheet_name }}”{% else %}Delimited table{% endif %}
+            </h2>
+            <p>
+              {{ table.rows|length }} non-empty data row(s) ·
+              header detected on source row {{ table.header_index + 1 }}
+            </p>
+          </div>
+          <span class="file-pill">{{ table.file_type|upper }}</span>
+        </div>
+
+        {% if table.warnings %}
+          <div class="warning-list">
+            {% for warning in table.warnings %}<p>{{ warning }}</p>{% endfor %}
+          </div>
+        {% endif %}
+
+        <details class="header-review">
+          <summary>Header row incorrect? Change it</summary>
+          <div class="inline-form">
+            <label for="header-{{ loop.index }}">Use source row</label>
+            <select
+              id="header-{{ loop.index }}"
+              name="header_index"
+              form="header-form-{{ loop.index }}"
+            >
+              {% for row in table.raw_rows[:15] %}
+                {% if row|select|list %}
+                  <option value="{{ loop.index0 }}" {% if loop.index0 == table.header_index %}selected{% endif %}>
+                    {{ loop.index }} — {{ row[:4]|join(' · ')|truncate(100) }}
+                  </option>
+                {% endif %}
+              {% endfor %}
+            </select>
+            <button
+              class="button button-secondary button-small"
+              type="submit"
+              form="header-form-{{ loop.index }}"
+            >Recalculate</button>
+          </div>
+        </details>
+
+        <div class="mapping-grid">
+          {% for field in fields %}
+            {% set suggestion = table.inferred_mapping[field] %}
+            <div class="mapping-row">
+              <div class="mapping-label">
+                <label for="map-{{ table.table_id|replace(':', '-') }}-{{ field }}">
+                  {{ field_labels[field] }}
+                </label>
+                <span class="confidence confidence-{{ suggestion.confidence }}">
+                  {{ suggestion.confidence }} confidence
+                </span>
+              </div>
+              <div>
+                <select
+                  id="map-{{ table.table_id|replace(':', '-') }}-{{ field }}"
+                  name="{{ mapping_name(table.table_id, field) }}"
+                >
+                  <option value="">— Not present / do not map —</option>
+                  {% for column in table.columns %}
+                    <option value="{{ column }}" {% if suggestion.selected == column %}selected{% endif %}>
+                      {{ column }}
+                    </option>
+                  {% endfor %}
+                </select>
+                <p class="mapping-reason">{{ suggestion.reason }}</p>
+              </div>
+              <div class="sample-box">
+                {% if suggestion.selected %}
+                  {% set detail = suggestion.candidates|selectattr('column', 'equalto', suggestion.selected)|first %}
+                  {% for sample in detail.samples %}
+                    <span>{{ sample|truncate(95) }}</span>
+                  {% else %}
+                    <em>No non-empty samples</em>
+                  {% endfor %}
+                {% else %}
+                  <em>Please choose a column if this field exists.</em>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+
+        <details class="column-profile">
+          <summary>Inspect every source column</summary>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr><th>Column</th><th>Filled rows</th><th>Unique</th><th>Examples</th></tr>
+              </thead>
+              <tbody>
+                {% for column in table.columns %}
+                  {% set profile = profiles[table.table_id][column] %}
+                  <tr>
+                    <th>{{ column }}</th>
+                    <td>{{ profile.nonempty }}</td>
+                    <td>{{ profile.unique }}</td>
+                    <td>{{ profile.samples|join(' · ')|truncate(180) }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </section>
+    {% endfor %}
+
+    <div class="sticky-actions">
+      <div>
+        <strong>Ready to build the master dataset?</strong>
+        <span>Every non-empty data row will be retained.</span>
+      </div>
+      <button class="button button-primary" type="submit">Confirm and parse all rows</button>
+    </div>
+  </form>
+
+  {% for table in tables %}
+    <form
+      id="header-form-{{ loop.index }}"
+      action="{{ url_for('update_header', job_id=job_id, table_id=table.table_id) }}"
+      method="post"
+    ></form>
+  {% endfor %}
+{% endblock %}
+

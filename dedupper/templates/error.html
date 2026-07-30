@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Could not continue · Dedupper{% endblock %}
+{% block content %}
+  <section class="card empty-state">
+    <div class="empty-icon">!</div>
+    <h1>Could not continue</h1>
+    <p>{{ message }}</p>
+    <a class="button button-primary" href="{{ url_for('index') }}">Return to upload</a>
+  </section>
+{% endblock %}
+
