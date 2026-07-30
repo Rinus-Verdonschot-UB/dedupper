@@ -63,48 +63,26 @@ flask --app run.py run --debug
 
 Open <http://127.0.0.1:5000>. For a non-development deployment, set a stable
 random `DEDUPPER_SECRET_KEY` and run the app through a production WSGI server.
+If that variable is omitted, Dedupper now creates one stable key file for all
+workers sharing the same container filesystem instead of generating a different
+key in each worker.
 
-## Run as a container
+## OpenShift
 
-The supplied `Containerfile` is compatible with OpenShift's arbitrary user IDs
-and starts Dedupper with Gunicorn on port 8080.
+Set `DEDUPPER_SECRET_KEY` to a stable random value in the Deployment. Jobs are
+currently stored on the container filesystem, so use one replica unless
+`JOB_ROOT` points to a persistent volume shared by all replicas:
 
 ```bash
-podman build -t dedupper:0.5.0 -f Containerfile .
-podman run --rm -p 8080:8080 \
-  -e DEDUPPER_SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')" \
-  -v dedupper-data:/data \
-  dedupper:0.5.0
+oc set env deployment/<deployment-name> DEDUPPER_SECRET_KEY=<random-secret>
+oc scale deployment/<deployment-name> --replicas=1
+oc rollout status deployment/<deployment-name>
 ```
 
-Open <http://127.0.0.1:8080>.
-
-## Deploy on OpenShift / DSRI
-
-1. Build and push the container image using the DSRI-supported image registry
-   or CI workflow.
-2. Copy `openshift.yaml` and replace
-   `REPLACE_WITH_YOUR_DEDUPPER_IMAGE` with the full image reference.
-3. In the target OpenShift project, create the cookie-signing secret:
-
-   ```bash
-   oc create secret generic dedupper-secret \
-     --from-literal=secret-key="$(python -c 'import secrets; print(secrets.token_hex(32))')"
-   ```
-
-4. Deploy and obtain the HTTPS address:
-
-   ```bash
-   oc apply -f openshift.yaml
-   oc get route dedupper
-   ```
-
-The manifest intentionally uses one replica. Job data is currently stored as
-JSON and uploaded files under `/data/jobs`; the included 2 GiB persistent
-volume keeps that data across pod restarts. Scaling to multiple replicas
-requires shared `ReadWriteMany` storage or replacing `JobStore` with a database
-and object storage. Increase the PVC size or adjust CPU/memory limits if DSRI
-usage warrants it.
+The stable secret prevents a mapping or deduplication request handled by a
+different WSGI worker from losing the signed job session. A single replica
+prevents a request from reaching another pod that cannot see the job's JSON
+files.
 
 ## Tests
 
@@ -118,8 +96,9 @@ multi-worksheet XLSX parsing, preservation of unmapped fields, DOI/title
 normalization, DOI conflicts, related-publication safeguards, fuzzy grouping,
 contextual protocol detection, single- and multi-record retention, collapsed
 post-action review and an
-end-to-end Flask upload, PubMed TXT ingestion, abstract preservation and
-CSV/XLSX/RIS export round trips.
+end-to-end Flask upload, PubMed TXT ingestion, abstract preservation,
+CSV/XLSX/RIS export round trips, and a two-file mapping request moving between
+separate WSGI app workers.
 
 ## Important interpretation of counts
 

@@ -5,6 +5,8 @@ import io
 import json
 import os
 import re
+import secrets
+import time
 import uuid
 from collections import defaultdict
 from pathlib import Path
@@ -25,6 +27,7 @@ from flask import (
     url_for,
 )
 from werkzeug.exceptions import RequestEntityTooLarge
+from werkzeug.exceptions import NotFound
 from werkzeug.utils import secure_filename
 
 from .dedup import apply_group_selections, find_duplicate_groups
@@ -56,17 +59,31 @@ EXPORT_FIELDS = [
 ]
 
 
+class JobUnavailable(NotFound):
+    description = (
+        "This upload job is no longer available in the current browser session. "
+        "Please return to the upload page and try again."
+    )
+
+
 def create_app(test_config: dict[str, Any] | None = None) -> Flask:
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_mapping(
-        SECRET_KEY=os.environ.get("DEDUPPER_SECRET_KEY") or os.urandom(32),
+        SECRET_KEY=os.environ.get("DEDUPPER_SECRET_KEY"),
+        SECRET_KEY_FILE=(
+            os.environ.get("DEDUPPER_SECRET_KEY_FILE")
+            or str(Path(app.instance_path) / ".secret-key")
+        ),
         MAX_CONTENT_LENGTH=100 * 1024 * 1024,
-        JOB_ROOT=os.environ.get("DEDUPPER_JOB_ROOT")
-        or str(Path(app.instance_path) / "jobs"),
+        JOB_ROOT=str(Path(app.instance_path) / "jobs"),
     )
     if test_config:
         app.config.update(test_config)
     Path(app.instance_path).mkdir(parents=True, exist_ok=True)
+    if not app.config["SECRET_KEY"]:
+        app.config["SECRET_KEY"] = _load_or_create_secret_key(
+            Path(app.config["SECRET_KEY_FILE"])
+        )
     store = JobStore(app.config["JOB_ROOT"])
     app.extensions["job_store"] = store
 
@@ -80,16 +97,16 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
             413,
         )
 
+    @app.errorhandler(JobUnavailable)
+    def job_unavailable(error: JobUnavailable) -> tuple[str, int]:
+        return render_template("error.html", message=error.description), 404
+
     @app.get("/")
     def index() -> str:
         return render_template(
             "index.html",
             supported=", ".join(sorted(SUPPORTED_EXTENSIONS)),
         )
-
-    @app.get("/healthz")
-    def healthz() -> tuple[dict[str, str], int]:
-        return {"status": "ok"}, 200
 
     @app.post("/upload")
     def upload() -> Response:
@@ -372,11 +389,39 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
 
 def _owned_manifest(store: JobStore, job_id: str) -> dict[str, Any]:
     if session.get("job_id") != job_id:
-        abort(404)
+        raise JobUnavailable()
     manifest = store.load_json(job_id, "manifest")
     if manifest is None:
-        abort(404)
+        raise JobUnavailable()
     return manifest
+
+
+def _load_or_create_secret_key(path: Path) -> str:
+    """Return one stable session key for every worker sharing this filesystem."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        descriptor = os.open(
+            path,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+            0o600,
+        )
+    except FileExistsError:
+        # A second worker can observe the new path just before the first worker
+        # has finished writing it. Briefly retry rather than accepting an empty
+        # key and invalidating sessions between workers.
+        for _ in range(50):
+            value = path.read_text(encoding="ascii").strip()
+            if value:
+                return value
+            time.sleep(0.01)
+        raise RuntimeError(f"Session key file is empty: {path}")
+
+    value = secrets.token_hex(32)
+    with os.fdopen(descriptor, "w", encoding="ascii") as handle:
+        handle.write(value)
+        handle.flush()
+        os.fsync(handle.fileno())
+    return value
 
 
 def _mapping_name(table_id: str, field: str) -> str:

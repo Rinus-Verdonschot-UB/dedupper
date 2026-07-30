@@ -61,6 +61,78 @@ def test_csv_upload_mapping_audit_and_export(tmp_path: Path) -> None:
     assert b"First abstract" in export.data
 
 
+def test_two_file_mapping_survives_a_different_app_worker(
+    tmp_path: Path,
+) -> None:
+    shared_config = {
+        "TESTING": True,
+        "SECRET_KEY": None,
+        "SECRET_KEY_FILE": str(tmp_path / "session-secret"),
+        "JOB_ROOT": str(tmp_path / "jobs"),
+    }
+    first_worker = create_app(shared_config)
+    second_worker = create_app(shared_config)
+    first_client = first_worker.test_client()
+    second_client = second_worker.test_client()
+
+    csv_payload = (
+        b"Title,Year,Authors,DOI,Journal\n"
+        b"First scientific article,2024,Smith,10.1234/first,Journal A\n"
+    )
+    ris_payload = (
+        b"TY  - JOUR\nTI  - Second scientific article\n"
+        b"PY  - 2023\nDO  - 10.1234/second\nER  -\n"
+    )
+    response = first_client.post(
+        "/upload",
+        data={
+            "file_count": "2",
+            "files": [
+                (io.BytesIO(csv_payload), "source.csv"),
+                (io.BytesIO(ris_payload), "source.ris"),
+            ],
+        },
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/mapping")
+
+    session_cookie = first_client.get_cookie("session")
+    assert session_cookie is not None
+    second_client.set_cookie("session", session_cookie.value)
+
+    with first_client.session_transaction() as flask_session:
+        job_id = flask_session["job_id"]
+    response = second_client.post(
+        f"/jobs/{job_id}/process",
+        data={
+            "mapping.file1:table.title": "Title",
+            "mapping.file1:table.year": "Year",
+            "mapping.file1:table.first_author": "Authors",
+            "mapping.file1:table.doi": "DOI",
+            "mapping.file1:table.journal": "Journal",
+        },
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    assert b"2 records entered the master dataset" in response.data
+
+
+def test_missing_job_session_has_a_useful_error(tmp_path: Path) -> None:
+    app = create_app(
+        {
+            "TESTING": True,
+            "SECRET_KEY": "test",
+            "JOB_ROOT": str(tmp_path / "jobs"),
+        }
+    )
+    response = app.test_client().post("/jobs/notmyjob/process")
+
+    assert response.status_code == 404
+    assert b"no longer available in the current browser session" in response.data
+
+
 def test_ris_only_upload_skips_mapping_step(tmp_path: Path) -> None:
     app = create_app(
         {
