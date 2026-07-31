@@ -9,8 +9,8 @@ from typing import Any
 
 from rapidfuzz.fuzz import ratio, token_set_ratio
 
+from .doi import normalize_doi
 
-DOI_PATTERN = re.compile(r"10\.\d{4,9}/[-._;()/:a-z0-9]+", re.IGNORECASE)
 RELATED_PUBLICATION_PREFIXES = (
     (
         "correction",
@@ -58,6 +58,32 @@ RELATED_PUBLICATION_SUFFIX = re.compile(
     re.IGNORECASE,
 )
 PROTOCOL_WORD = re.compile(r"\bprotocol\b", re.IGNORECASE)
+CONFERENCE_ABSTRACT_PATTERN = re.compile(
+    r"(?:\b(?:conference|congress|meeting|symposium)\s+abstracts?\b|"
+    r"\babstracts?\s+(?:from|of|for)\s+(?:an?\s+)?"
+    r"(?:conference|congress|meeting|symposium)\b)",
+    re.IGNORECASE,
+)
+PUBLICATION_TYPE_KEYS = {
+    "pt",
+    "dt",
+    "m3",
+    "publication type",
+    "publication types",
+    "document type",
+    "document types",
+    "article type",
+    "article types",
+    "record type",
+    "source type",
+    "publication category",
+    "document category",
+    "publicatietype",
+    "publicatie type",
+    "documenttype",
+}
+CONFERENCE_TITLE_THRESHOLD = 96.0
+CONFERENCE_AUTHOR_THRESHOLD = 100.0
 CONVENTIONAL_PROTOCOL_MARKER = re.compile(
     r"(?:"
     r"(?:[:.\-–—]\s*|[\[(]\s*)(?:a\s+|an\s+)?"
@@ -95,15 +121,6 @@ STOPWORDS = {
     "van",
     "with",
 }
-
-
-def normalize_doi(value: str) -> str:
-    value = html.unescape(value or "").strip().casefold()
-    value = re.sub(r"^(?:https?://)?(?:dx\.)?doi\.org/", "", value)
-    value = re.sub(r"^doi\s*:\s*", "", value)
-    match = DOI_PATTERN.search(value)
-    return match.group(0).rstrip(".,;:)]}") if match else ""
-
 
 def normalize_title(value: str) -> str:
     value = value or ""
@@ -149,6 +166,135 @@ def _author_key(value: str) -> str:
     value = unicodedata.normalize("NFKD", value or "").casefold()
     value = "".join(char for char in value if not unicodedata.combining(char))
     return re.sub(r"[^a-z0-9]", "", value)
+
+
+def _publication_type_values(record: dict[str, Any]) -> list[str]:
+    values = [str(record.get("publication_type", "")).strip()]
+    raw_fields = record.get("raw_fields", {})
+    if isinstance(raw_fields, dict):
+        for key, value in raw_fields.items():
+            normalized_key = normalize_title(str(key))
+            if normalized_key not in PUBLICATION_TYPE_KEYS:
+                continue
+            if isinstance(value, list):
+                values.extend(str(item).strip() for item in value)
+            else:
+                values.append(str(value).strip())
+    return [value for value in values if value]
+
+
+def is_conference_abstract(record: dict[str, Any]) -> bool:
+    """Recognize an explicit conference-abstract publication type.
+
+    The title itself is only consulted for an explicit bracketed/suffixed type
+    marker. Ordinary articles that merely discuss conference abstracts are not
+    reclassified.
+    """
+
+    if any(
+        CONFERENCE_ABSTRACT_PATTERN.search(value)
+        for value in _publication_type_values(record)
+    ):
+        return True
+    title = html.unescape(str(record.get("title", "")))
+    return bool(
+        re.search(
+            r"(?:[:\-–—]\s*|[\[(]\s*)conference\s+abstract\s*[\])]?[\s.]*$",
+            title,
+            re.IGNORECASE,
+        )
+    )
+
+
+def _conference_title_score(left: str, right: str) -> float:
+    left_title = normalize_title(left)
+    right_title = normalize_title(right)
+    if not left_title or not right_title:
+        return 0.0
+    plain_score = ratio(left_title, right_title)
+    token_score = token_set_ratio(left_title, right_title)
+    return max(plain_score, 0.8 * plain_score + 0.2 * token_score)
+
+
+def _conference_author_score(left: str, right: str) -> float:
+    left_author = _author_key(left)
+    right_author = _author_key(right)
+    # A lone initial is not reliable surname evidence in conference exports.
+    if len(left_author) < 2 or len(right_author) < 2:
+        return 0.0
+    return ratio(left_author, right_author)
+
+
+def _conference_records_match(
+    left: dict[str, Any], right: dict[str, Any]
+) -> bool:
+    """Require near-identity of both title and first-author surname."""
+
+    left_title = normalize_title(str(left.get("title", "")))
+    right_title = normalize_title(str(right.get("title", "")))
+    left_numbers = re.findall(r"\b\d+(?:\.\d+)?\b", left_title)
+    right_numbers = re.findall(r"\b\d+(?:\.\d+)?\b", right_title)
+    if left_numbers and right_numbers and left_numbers != right_numbers:
+        return False
+    if publication_kind(left.get("title", "")) != publication_kind(
+        right.get("title", "")
+    ):
+        return False
+    return bool(
+        _conference_title_score(left_title, right_title)
+        >= CONFERENCE_TITLE_THRESHOLD
+        and _conference_author_score(
+            str(left.get("first_author", "")),
+            str(right.get("first_author", "")),
+        )
+        >= CONFERENCE_AUTHOR_THRESHOLD
+    )
+
+
+def _conference_context(records: list[dict[str, Any]]) -> dict[str, Any]:
+    conference_ids = {
+        record["record_id"]
+        for record in records
+        if is_conference_abstract(record)
+    }
+    source_doi_buckets: dict[tuple[str, str], list[str]] = defaultdict(list)
+    for record in records:
+        doi = normalize_doi(record.get("doi", ""))
+        if doi:
+            source_doi_buckets[(str(record.get("source_file_id", "")), doi)].append(
+                record["record_id"]
+            )
+
+    protected_clusters = {
+        key: member_ids
+        for key, member_ids in source_doi_buckets.items()
+        if len(set(member_ids) & conference_ids) >= 2
+    }
+    return {
+        "conference_ids": conference_ids,
+        "protected_clusters": protected_clusters,
+        "shared_conference_dois": {
+            doi for (_, doi) in protected_clusters
+        },
+    }
+
+
+def _conference_sensitive_pair(
+    left: dict[str, Any],
+    right: dict[str, Any],
+    conference_context: dict[str, Any],
+) -> bool:
+    conference_ids = conference_context["conference_ids"]
+    if (
+        left["record_id"] in conference_ids
+        or right["record_id"] in conference_ids
+    ):
+        return True
+    shared_dois = conference_context["shared_conference_dois"]
+    return bool(
+        normalize_doi(left.get("doi", "")) in shared_dois
+        or normalize_doi(right.get("doi", "")) in shared_dois
+    )
 
 
 def _has_protocol_marker(value: str) -> bool:
@@ -261,39 +407,75 @@ class UnionFind:
         return bool(left_dois and right_dois and left_dois != right_dois)
 
 
-def _add_exact_edges(
+def _add_exact_doi_edges(
     records: list[dict[str, Any]],
-    key_function: Any,
-    label: str,
     union_find: UnionFind,
     edges: list[dict[str, Any]],
+    conference_context: dict[str, Any],
 ) -> None:
-    buckets: dict[str, list[str]] = defaultdict(list)
+    buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for record in records:
-        key = key_function(record)
+        key = normalize_doi(record.get("doi", ""))
         if key:
-            buckets[key].append(record["record_id"])
-    for key, ids in buckets.items():
-        for current in ids[1:]:
-            union_find.union(ids[0], current)
+            buckets[key].append(record)
+
+    for doi, bucket in buckets.items():
+        if len(bucket) < 2:
+            continue
+        is_shared_conference_doi = bool(
+            doi in conference_context["shared_conference_dois"]
+            or any(
+                record["record_id"] in conference_context["conference_ids"]
+                for record in bucket
+            )
+        )
+        if is_shared_conference_doi:
+            author_buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
+            for record in bucket:
+                author_key = _author_key(record.get("first_author", ""))
+                if len(author_key) >= 2:
+                    author_buckets[author_key].append(record)
+            pairs = (
+                (author_bucket[left_index], author_bucket[right_index])
+                for author_bucket in author_buckets.values()
+                for left_index in range(len(author_bucket))
+                for right_index in range(left_index + 1, len(author_bucket))
+            )
+        else:
+            pairs = ((bucket[0], current) for current in bucket[1:])
+
+        for left, right in pairs:
+            if is_shared_conference_doi and not _conference_records_match(
+                left, right
+            ):
+                continue
+            union_find.union(left["record_id"], right["record_id"])
             edges.append(
                 {
-                    "left": ids[0],
-                    "right": current,
-                    "method": label,
-                    "value": key,
+                    "left": left["record_id"],
+                    "right": right["record_id"],
+                    "method": (
+                        "Conference abstract title + first author"
+                        if is_shared_conference_doi
+                        else "Exact DOI"
+                    ),
+                    "value": doi,
                     "score": 100.0,
                 }
             )
 
 
 def _title_evidence_is_compatible(
-    left: dict[str, Any], right: dict[str, Any]
+    left: dict[str, Any],
+    right: dict[str, Any],
+    conference_context: dict[str, Any],
 ) -> bool:
     left_doi = normalize_doi(left.get("doi", ""))
     right_doi = normalize_doi(right.get("doi", ""))
     if left_doi and right_doi and left_doi != right_doi:
         return False
+    if _conference_sensitive_pair(left, right, conference_context):
+        return _conference_records_match(left, right)
     return publication_kind(left.get("title", "")) == publication_kind(
         right.get("title", "")
     )
@@ -303,6 +485,7 @@ def _add_exact_title_edges(
     records: list[dict[str, Any]],
     union_find: UnionFind,
     edges: list[dict[str, Any]],
+    conference_context: dict[str, Any],
 ) -> None:
     buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for record in records:
@@ -320,24 +503,32 @@ def _add_exact_title_edges(
         }
         if len(known_dois) > 1:
             continue
-        anchor = bucket[0]
-        for current in bucket[1:]:
-            if not _title_evidence_is_compatible(anchor, current):
-                continue
-            if union_find.has_doi_conflict(
-                anchor["record_id"], current["record_id"]
-            ):
-                continue
-            union_find.union(anchor["record_id"], current["record_id"])
-            edges.append(
-                {
-                    "left": anchor["record_id"],
-                    "right": current["record_id"],
-                    "method": "Exact cleaned title",
-                    "value": key,
-                    "score": 100.0,
-                }
-            )
+        for left_index, left in enumerate(bucket):
+            for current in bucket[left_index + 1 :]:
+                if not _title_evidence_is_compatible(
+                    left, current, conference_context
+                ):
+                    continue
+                if union_find.has_doi_conflict(
+                    left["record_id"], current["record_id"]
+                ):
+                    continue
+                union_find.union(left["record_id"], current["record_id"])
+                edges.append(
+                    {
+                        "left": left["record_id"],
+                        "right": current["record_id"],
+                        "method": (
+                            "Conference abstract title + first author"
+                            if _conference_sensitive_pair(
+                                left, current, conference_context
+                            )
+                            else "Exact cleaned title"
+                        ),
+                        "value": key,
+                        "score": 100.0,
+                    }
+                )
 
 
 def find_duplicate_groups(
@@ -349,15 +540,12 @@ def find_duplicate_groups(
     by_id = {record["record_id"]: record for record in records}
     union_find = UnionFind(records)
     edges: list[dict[str, Any]] = []
+    conference_context = _conference_context(records)
 
-    _add_exact_edges(
-        records,
-        lambda record: normalize_doi(record.get("doi", "")),
-        "Exact DOI",
-        union_find,
-        edges,
+    _add_exact_doi_edges(records, union_find, edges, conference_context)
+    _add_exact_title_edges(
+        records, union_find, edges, conference_context
     )
-    _add_exact_title_edges(records, union_find, edges)
 
     title_by_id = {
         record["record_id"]: normalize_title(record.get("title", ""))
@@ -408,7 +596,9 @@ def find_duplicate_groups(
             other_title = title_by_id[other_id]
             if title == other_title:
                 continue
-            if not _title_evidence_is_compatible(record, other):
+            if not _title_evidence_is_compatible(
+                record, other, conference_context
+            ):
                 continue
             year, other_year = record.get("year", ""), other.get("year", "")
             if year and other_year and year != other_year:
@@ -435,12 +625,19 @@ def find_duplicate_groups(
                     continue
             if union_find.has_doi_conflict(record_id, other_id):
                 continue
+            conference_match = _conference_sensitive_pair(
+                record, other, conference_context
+            )
             union_find.union(record_id, other_id)
             edges.append(
                 {
                     "left": record_id,
                     "right": other_id,
-                    "method": "Fuzzy cleaned title",
+                    "method": (
+                        "Conference abstract title + first author"
+                        if conference_match
+                        else "Fuzzy cleaned title"
+                    ),
                     "value": "",
                     "score": round(score, 1),
                 }
@@ -461,6 +658,11 @@ def find_duplicate_groups(
             if edge["left"] in member_set and edge["right"] in member_set
         ]
         member_records = [by_id[item] for item in member_ids]
+        conference_abstract_ids = [
+            record_id
+            for record_id in member_ids
+            if record_id in conference_context["conference_ids"]
+        ]
         potential_protocol_ids = _potential_protocol_record_ids(
             member_records,
             fuzzy_threshold,
@@ -479,6 +681,7 @@ def find_duplicate_groups(
                 "record_ids": member_ids,
                 "recommended_record_id": recommendation["record_id"],
                 "potential_protocol_record_ids": potential_protocol_ids,
+                "conference_abstract_record_ids": conference_abstract_ids,
                 "edges": group_edges,
                 "methods": sorted({edge["method"] for edge in group_edges}),
             }
@@ -492,6 +695,66 @@ def find_duplicate_groups(
     return groups
 
 
+def conference_abstract_report(
+    records: list[dict[str, Any]], groups: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Summarize explicit conference abstracts and protected DOI containers."""
+
+    context = _conference_context(records)
+    conference_ids: set[str] = context["conference_ids"]
+    by_id = {record["record_id"]: record for record in records}
+    protected_record_ids: set[str] = set()
+    clusters: list[dict[str, Any]] = []
+    for (source_file_id, doi), member_ids in sorted(
+        context["protected_clusters"].items()
+    ):
+        conference_member_ids = [
+            record_id for record_id in member_ids if record_id in conference_ids
+        ]
+        protected_record_ids.update(conference_member_ids)
+        first = by_id[member_ids[0]]
+        clusters.append(
+            {
+                "source_file_id": source_file_id,
+                "source_filename": first.get("source_filename", ""),
+                "doi": doi,
+                "conference_abstract_records": len(conference_member_ids),
+                "total_records": len(member_ids),
+            }
+        )
+
+    conference_groups = [
+        group
+        for group in groups
+        if set(group["record_ids"]) & conference_ids
+    ]
+    matched_record_ids = {
+        record_id
+        for group in conference_groups
+        for record_id in group["record_ids"]
+        if record_id in conference_ids
+    }
+    cross_file_groups = 0
+    for group in conference_groups:
+        source_ids = {
+            str(by_id[record_id].get("source_file_id", ""))
+            for record_id in group["record_ids"]
+        }
+        if len(source_ids) > 1:
+            cross_file_groups += 1
+
+    return {
+        "identified_records": len(conference_ids),
+        "protected_records": len(protected_record_ids),
+        "same_source_shared_doi_clusters": len(clusters),
+        "overlapping_dois": len({cluster["doi"] for cluster in clusters}),
+        "duplicate_groups": len(conference_groups),
+        "cross_file_duplicate_groups": cross_file_groups,
+        "matched_records": len(matched_record_ids),
+        "clusters": clusters,
+    }
+
+
 def record_information_score(record: dict[str, Any]) -> tuple[int, int, int, int]:
     canonical = [
         record.get("title", ""),
@@ -500,6 +763,7 @@ def record_information_score(record: dict[str, Any]) -> tuple[int, int, int, int
         record.get("doi", ""),
         record.get("journal", ""),
         record.get("abstract", ""),
+        record.get("publication_type", ""),
     ]
     raw_fields = record.get("raw_fields", {})
     raw_nonempty = sum(

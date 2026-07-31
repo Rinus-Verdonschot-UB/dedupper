@@ -93,6 +93,30 @@
     </article>
   </section>
 
+  {% if conference_report.get('identified_records', 0) %}
+    <section class="conference-safeguard" aria-labelledby="conference-safeguard-title">
+      <div>
+        <p class="source-label">Publication-type check</p>
+        <h2 id="conference-safeguard-title">Conference abstract safeguard</h2>
+      </div>
+      <p>
+        {{ conference_report.identified_records }} conference abstract record(s) were detected.
+        {% if conference_report.same_source_shared_doi_clusters %}
+          {{ conference_report.protected_records }} occurred in
+          {{ conference_report.same_source_shared_doi_clusters }} same-source shared-DOI
+          cluster(s), involving {{ conference_report.overlapping_dois }} distinct DOI value(s).
+          DOI alone was ignored for those records.
+        {% else %}
+          No repeated proceedings DOI was found within one source file.
+        {% endif %}
+        Near-identical titles and first-author surnames left
+        {{ conference_report.duplicate_groups }} likely conference-abstract duplicate
+        group(s), including {{ conference_report.cross_file_duplicate_groups }} spanning
+        more than one source file.
+      </p>
+    </section>
+  {% endif %}
+
   {% if deduplicated is not none %}
     <section id="deduplicated-output" class="completion-card" tabindex="-1">
       <div>
@@ -139,7 +163,9 @@
           canonical and raw fields. Conflicting DOIs and related publications
           such as corrections or commentaries are kept separate. A likely
           protocol is labelled only when it appears beside a matching
-          non-protocol record, and is not recommended automatically.
+          non-protocol record, and is not recommended automatically. Conference
+          abstracts sharing a proceedings DOI are grouped only when title and
+          first author also agree very closely.
         </p>
       </section>
 
@@ -150,7 +176,9 @@
               <p class="source-label">Group {{ loop.index }} · {{ group.record_ids|length }} records</p>
               <h3>{{ group.methods|join(' + ') }}</h3>
             </div>
-            {% if 'Fuzzy cleaned title' in group.methods %}
+            {% if 'Conference abstract title + first author' in group.methods %}
+              <span class="status status-review">Review conference match</span>
+            {% elif 'Fuzzy cleaned title' in group.methods %}
               <span class="status status-review">Review fuzzy match</span>
             {% else %}
               <span class="status status-good">Exact match</span>
@@ -167,6 +195,7 @@
               {% set record = by_id[record_id] %}
               {% set applied_ids = selected_by_group.get(group.group_id, []) %}
               {% set potential_protocol_ids = group.get('potential_protocol_record_ids', []) %}
+              {% set conference_abstract_ids = group.get('conference_abstract_record_ids', []) %}
               <label class="record-option {% if record_id == group.recommended_record_id %}recommended{% endif %}">
                 <input
                   type="checkbox"
@@ -179,10 +208,13 @@
                 <span class="record-body">
                   <span class="record-topline">
                     <strong>{{ record.title or '(No mapped title)' }}</strong>
-                    {% if record_id in potential_protocol_ids or record_id == group.recommended_record_id %}
+                    {% if record_id in potential_protocol_ids or record_id in conference_abstract_ids or record_id == group.recommended_record_id %}
                       <span class="record-badges">
                         {% if record_id in potential_protocol_ids %}
                           <span class="protocol-flag">Potential protocol</span>
+                        {% endif %}
+                        {% if record_id in conference_abstract_ids %}
+                          <span class="conference-flag">Conference abstract</span>
                         {% endif %}
                         {% if record_id == group.recommended_record_id %}
                           <span class="recommendation">Recommended</span>

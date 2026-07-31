@@ -1,0 +1,1597 @@
+[
+  {
+    "group_id": "ec0de3afd16345aa8abe5d2c31ddac5d",
+    "record_ids": [
+      "664acd252ce24af0b52a7a354f5fc375",
+      "2ec9c375bd064b4980254a1b88735a1a",
+      "75d5ca2a48e84019a6966f306d3326ea",
+      "0205391af72e4cbeacf172148b70a6cb",
+      "736e628abd5646c7a439a63b4f3f7709"
+    ],
+    "recommended_record_id": "2ec9c375bd064b4980254a1b88735a1a",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "664acd252ce24af0b52a7a354f5fc375",
+        "right": "2ec9c375bd064b4980254a1b88735a1a",
+        "method": "Exact DOI",
+        "value": "10.1016/s0140-6736",
+        "score": 100.0
+      },
+      {
+        "left": "664acd252ce24af0b52a7a354f5fc375",
+        "right": "75d5ca2a48e84019a6966f306d3326ea",
+        "method": "Exact DOI",
+        "value": "10.1016/s0140-6736",
+        "score": 100.0
+      },
+      {
+        "left": "664acd252ce24af0b52a7a354f5fc375",
+        "right": "0205391af72e4cbeacf172148b70a6cb",
+        "method": "Exact DOI",
+        "value": "10.1016/s0140-6736",
+        "score": 100.0
+      },
+      {
+        "left": "664acd252ce24af0b52a7a354f5fc375",
+        "right": "736e628abd5646c7a439a63b4f3f7709",
+        "method": "Exact DOI",
+        "value": "10.1016/s0140-6736",
+        "score": 100.0
+      },
+      {
+        "left": "75d5ca2a48e84019a6966f306d3326ea",
+        "right": "0205391af72e4cbeacf172148b70a6cb",
+        "method": "Exact cleaned title",
+        "value": "stereotactic radiotherapy for namd areas for improvement",
+        "score": 100.0
+      },
+      {
+        "left": "75d5ca2a48e84019a6966f306d3326ea",
+        "right": "736e628abd5646c7a439a63b4f3f7709",
+        "method": "Fuzzy cleaned title",
+        "value": "",
+        "score": 93.9
+      },
+      {
+        "left": "0205391af72e4cbeacf172148b70a6cb",
+        "right": "736e628abd5646c7a439a63b4f3f7709",
+        "method": "Fuzzy cleaned title",
+        "value": "",
+        "score": 93.9
+      }
+    ],
+    "methods": [
+      "Exact DOI",
+      "Exact cleaned title",
+      "Fuzzy cleaned title"
+    ]
+  },
+  {
+    "group_id": "f8b0f517fc784d35a0344fd587b4a41f",
+    "record_ids": [
+      "d6363faa10c74cd9b34fae94759aaf54",
+      "04ba6cf770694c31a4e44684d4b50fe9",
+      "4cb03f6edd024be2ac24dc8d676e291e"
+    ],
+    "recommended_record_id": "d6363faa10c74cd9b34fae94759aaf54",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "d6363faa10c74cd9b34fae94759aaf54",
+        "right": "4cb03f6edd024be2ac24dc8d676e291e",
+        "method": "Exact cleaned title",
+        "value": "a phase 3 randomized double masked controlled trial to establish the safety and efficacy of intravitreous administration of fovista anti pdgf b pegylated aptamer administered in combination with lucentis compared to lucentis monotherapy in subjects with subfoveal neovascular age related macular degeneration",
+        "score": 100.0
+      },
+      {
+        "left": "d6363faa10c74cd9b34fae94759aaf54",
+        "right": "04ba6cf770694c31a4e44684d4b50fe9",
+        "method": "Fuzzy cleaned title",
+        "value": "",
+        "score": 95.4
+      },
+      {
+        "left": "04ba6cf770694c31a4e44684d4b50fe9",
+        "right": "4cb03f6edd024be2ac24dc8d676e291e",
+        "method": "Fuzzy cleaned title",
+        "value": "",
+        "score": 95.4
+      }
+    ],
+    "methods": [
+      "Exact cleaned title",
+      "Fuzzy cleaned title"
+    ]
+  },
+  {
+    "group_id": "1957edc0cf9c4af48e0f5d27bba210f5",
+    "record_ids": [
+      "0f3a92991d6046b188410619d9b3abed",
+      "5b4db470107f4dfaafce796f4a2c94e8",
+      "96bdea54165c483cacf023b13e80242c"
+    ],
+    "recommended_record_id": "5b4db470107f4dfaafce796f4a2c94e8",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "0f3a92991d6046b188410619d9b3abed",
+        "right": "96bdea54165c483cacf023b13e80242c",
+        "method": "Fuzzy cleaned title",
+        "value": "",
+        "score": 95.5
+      },
+      {
+        "left": "0f3a92991d6046b188410619d9b3abed",
+        "right": "5b4db470107f4dfaafce796f4a2c94e8",
+        "method": "Fuzzy cleaned title",
+        "value": "",
+        "score": 94.2
+      },
+      {
+        "left": "5b4db470107f4dfaafce796f4a2c94e8",
+        "right": "96bdea54165c483cacf023b13e80242c",
+        "method": "Fuzzy cleaned title",
+        "value": "",
+        "score": 96.8
+      }
+    ],
+    "methods": [
+      "Fuzzy cleaned title"
+    ]
+  },
+  {
+    "group_id": "7c1c0b572470450c82fd81225bd6a72f",
+    "record_ids": [
+      "ec27b3d4b0544f18871e27a1c81ac4f9",
+      "db9bf7a74ced4ab294640969bd160575"
+    ],
+    "recommended_record_id": "ec27b3d4b0544f18871e27a1c81ac4f9",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "ec27b3d4b0544f18871e27a1c81ac4f9",
+        "right": "db9bf7a74ced4ab294640969bd160575",
+        "method": "Exact cleaned title",
+        "value": "a 2 year phase 3 multicenter prospective randomized double masked parallel group study of eyp 1901 a tyrosine kinase inhibitor tki compared to aflibercept in subjects with wet amd",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Exact cleaned title"
+    ]
+  },
+  {
+    "group_id": "3557b2355588425db5dd385884cd1957",
+    "record_ids": [
+      "e9bfa40a5ee247e583cbace90bb216f3",
+      "14cfdff7f0cf4ff2932c5a67aa0c0e86"
+    ],
+    "recommended_record_id": "e9bfa40a5ee247e583cbace90bb216f3",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "e9bfa40a5ee247e583cbace90bb216f3",
+        "right": "14cfdff7f0cf4ff2932c5a67aa0c0e86",
+        "method": "Fuzzy cleaned title",
+        "value": "",
+        "score": 96.4
+      }
+    ],
+    "methods": [
+      "Fuzzy cleaned title"
+    ]
+  },
+  {
+    "group_id": "74fb27f09ece4dbfa3e048c2170d3e5c",
+    "record_ids": [
+      "2d9fb7b659b744b29fa44267f6e40e0e",
+      "0897c019a42141a3b44a4f4179d56086"
+    ],
+    "recommended_record_id": "2d9fb7b659b744b29fa44267f6e40e0e",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "2d9fb7b659b744b29fa44267f6e40e0e",
+        "right": "0897c019a42141a3b44a4f4179d56086",
+        "method": "Exact cleaned title",
+        "value": "a clinical effectiveness multicenter randomized double masked controlled study of the efficacy and safety of ons 5010 in subjects with subfoveal choroidal neovascularization cnv secondary to age related macular degeneration",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Exact cleaned title"
+    ]
+  },
+  {
+    "group_id": "601a3b249ee141eb8942fdb540a86038",
+    "record_ids": [
+      "585151dacb334444abad2d2eadba6b25",
+      "7d8de64f0da543588075065cb15a57f3"
+    ],
+    "recommended_record_id": "585151dacb334444abad2d2eadba6b25",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "585151dacb334444abad2d2eadba6b25",
+        "right": "7d8de64f0da543588075065cb15a57f3",
+        "method": "Fuzzy cleaned title",
+        "value": "",
+        "score": 99.8
+      }
+    ],
+    "methods": [
+      "Fuzzy cleaned title"
+    ]
+  },
+  {
+    "group_id": "f3f678b0c5a641bc9a5ce8f753b7c626",
+    "record_ids": [
+      "8cf14ffff081460b92fd84a376dd114b",
+      "2ec4649a5b9d48adad89f2514fc8f80a"
+    ],
+    "recommended_record_id": "8cf14ffff081460b92fd84a376dd114b",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "8cf14ffff081460b92fd84a376dd114b",
+        "right": "2ec4649a5b9d48adad89f2514fc8f80a",
+        "method": "Fuzzy cleaned title",
+        "value": "",
+        "score": 92.6
+      }
+    ],
+    "methods": [
+      "Fuzzy cleaned title"
+    ]
+  },
+  {
+    "group_id": "b23be6ebe5fc4635b29437d79c55da42",
+    "record_ids": [
+      "727c5619ca0d476689063fbc82659d4e",
+      "883deb47a6c541ca94873d2cd61541bb"
+    ],
+    "recommended_record_id": "727c5619ca0d476689063fbc82659d4e",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "727c5619ca0d476689063fbc82659d4e",
+        "right": "883deb47a6c541ca94873d2cd61541bb",
+        "method": "Fuzzy cleaned title",
+        "value": "",
+        "score": 99.5
+      }
+    ],
+    "methods": [
+      "Fuzzy cleaned title"
+    ]
+  },
+  {
+    "group_id": "1b9caa14b3664fd5987d1d9a2506eb9c",
+    "record_ids": [
+      "ad32c352059a435d80a6588bbf28590b",
+      "6293ec9acc0d4b7e90241dfe0039d17d"
+    ],
+    "recommended_record_id": "ad32c352059a435d80a6588bbf28590b",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "ad32c352059a435d80a6588bbf28590b",
+        "right": "6293ec9acc0d4b7e90241dfe0039d17d",
+        "method": "Exact cleaned title",
+        "value": "a multicenter prospective epidemiologic study of the progression of geographic atrophy secondary to age related macular degeneration",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Exact cleaned title"
+    ]
+  },
+  {
+    "group_id": "34e269cae4a44390adfccfa655b4753e",
+    "record_ids": [
+      "4a080785eca84f499b80a9bb2ee88d72",
+      "36436c817d064536aa32ee7e01867e89"
+    ],
+    "recommended_record_id": "4a080785eca84f499b80a9bb2ee88d72",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "4a080785eca84f499b80a9bb2ee88d72",
+        "right": "36436c817d064536aa32ee7e01867e89",
+        "method": "Fuzzy cleaned title",
+        "value": "",
+        "score": 93.5
+      }
+    ],
+    "methods": [
+      "Fuzzy cleaned title"
+    ]
+  },
+  {
+    "group_id": "ce78f58e256e4232920ea8fc097af604",
+    "record_ids": [
+      "c12341ef95b04551b993a93fe705a798",
+      "79b89b68acd94e6e90fe86f58d53e865"
+    ],
+    "recommended_record_id": "c12341ef95b04551b993a93fe705a798",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "c12341ef95b04551b993a93fe705a798",
+        "right": "79b89b68acd94e6e90fe86f58d53e865",
+        "method": "Exact cleaned title",
+        "value": "a phase 3 multi center randomized double masked sham controlled study to compare the efficacy and safety of intravitreal pegcetacoplan therapy with sham injections in patients with geographic atrophy ga secondary to age related macular degeneration amd",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Exact cleaned title"
+    ]
+  },
+  {
+    "group_id": "3ff8da4ff0e94d86b336cb9329551c1f",
+    "record_ids": [
+      "818ad3c6c7b34668a04b33a405c2614a",
+      "a23d78db332f4182837b5d19f97354b9"
+    ],
+    "recommended_record_id": "a23d78db332f4182837b5d19f97354b9",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "818ad3c6c7b34668a04b33a405c2614a",
+        "right": "a23d78db332f4182837b5d19f97354b9",
+        "method": "Fuzzy cleaned title",
+        "value": "",
+        "score": 99.3
+      }
+    ],
+    "methods": [
+      "Fuzzy cleaned title"
+    ]
+  },
+  {
+    "group_id": "87a44e75c3764471976630ef7398c7ac",
+    "record_ids": [
+      "488bc866b56a44ba8e47ad5c4d7d04a2",
+      "db9c9c7c0bfa476abf36bc71b9c5b243"
+    ],
+    "recommended_record_id": "488bc866b56a44ba8e47ad5c4d7d04a2",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "488bc866b56a44ba8e47ad5c4d7d04a2",
+        "right": "db9c9c7c0bfa476abf36bc71b9c5b243",
+        "method": "Fuzzy cleaned title",
+        "value": "",
+        "score": 94.1
+      }
+    ],
+    "methods": [
+      "Fuzzy cleaned title"
+    ]
+  },
+  {
+    "group_id": "8ec3a2258a4142eb8b78d3b82a4f7d96",
+    "record_ids": [
+      "95d60766727742d5a53ccff0d55a811c",
+      "73ab8d186450427a8d796fe11145dfa8"
+    ],
+    "recommended_record_id": "95d60766727742d5a53ccff0d55a811c",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "95d60766727742d5a53ccff0d55a811c",
+        "right": "73ab8d186450427a8d796fe11145dfa8",
+        "method": "Exact cleaned title",
+        "value": "a phase 3 randomized double masked active controlled study to compare the efficacy and safety of hlx04 o administered by intravitreal injection with ranibizumab in subjects with wet age related macular degeneration wamd",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Exact cleaned title"
+    ]
+  },
+  {
+    "group_id": "6fe3cfe2bd7547b8a4a9841b1952c7f7",
+    "record_ids": [
+      "8bc2400da45542b5864877888d7ee5b8",
+      "71ffd4f3fca349a4be38da6d7619c85a"
+    ],
+    "recommended_record_id": "8bc2400da45542b5864877888d7ee5b8",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "8bc2400da45542b5864877888d7ee5b8",
+        "right": "71ffd4f3fca349a4be38da6d7619c85a",
+        "method": "Exact cleaned title",
+        "value": "a phase 3 randomized double masked active controlled trial of a single intravitreal injection of 4d 150 in adults with macular neovascularization secondary to age related macular degeneration",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Exact cleaned title"
+    ]
+  },
+  {
+    "group_id": "196a39b4428e418f864e9ddf6c12ff46",
+    "record_ids": [
+      "1e0e76bd09f7487aac4c585341ede05d",
+      "c0dd1ad5b321463f97b7085c4665f93f"
+    ],
+    "recommended_record_id": "c0dd1ad5b321463f97b7085c4665f93f",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "1e0e76bd09f7487aac4c585341ede05d",
+        "right": "c0dd1ad5b321463f97b7085c4665f93f",
+        "method": "Fuzzy cleaned title",
+        "value": "",
+        "score": 97.5
+      }
+    ],
+    "methods": [
+      "Fuzzy cleaned title"
+    ]
+  },
+  {
+    "group_id": "8350e293afba42bdb4b3ef1ceeba27d1",
+    "record_ids": [
+      "043e6883018e4a80a25eed31a2a6d25b",
+      "0789e3527ffe4de8a4fa690f76a05137"
+    ],
+    "recommended_record_id": "043e6883018e4a80a25eed31a2a6d25b",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "043e6883018e4a80a25eed31a2a6d25b",
+        "right": "0789e3527ffe4de8a4fa690f76a05137",
+        "method": "Fuzzy cleaned title",
+        "value": "",
+        "score": 98.0
+      }
+    ],
+    "methods": [
+      "Fuzzy cleaned title"
+    ]
+  },
+  {
+    "group_id": "a03133e9aeff45fca70d485ef2b3adb4",
+    "record_ids": [
+      "28f3b8f2674a4269af0d63e5f18c89c1",
+      "11f772ba8b0f45818362f723a0b14864"
+    ],
+    "recommended_record_id": "28f3b8f2674a4269af0d63e5f18c89c1",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "28f3b8f2674a4269af0d63e5f18c89c1",
+        "right": "11f772ba8b0f45818362f723a0b14864",
+        "method": "Exact cleaned title",
+        "value": "a phase iii multicenter randomized double masked sham controlled study to assess the efficacy and safety of lampalizumab administered intravitreally to patients with geographic atrophy secondary to age related macular degeneration",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Exact cleaned title"
+    ]
+  },
+  {
+    "group_id": "78525e06bf72491c99f1aae45a49c5aa",
+    "record_ids": [
+      "9bffdddb5bc142f0970d3f51482759e6",
+      "58133602f65a46c1a26417031ac8a7ea"
+    ],
+    "recommended_record_id": "58133602f65a46c1a26417031ac8a7ea",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "9bffdddb5bc142f0970d3f51482759e6",
+        "right": "58133602f65a46c1a26417031ac8a7ea",
+        "method": "Fuzzy cleaned title",
+        "value": "",
+        "score": 92.8
+      }
+    ],
+    "methods": [
+      "Fuzzy cleaned title"
+    ]
+  },
+  {
+    "group_id": "b28f5c20a7644563aeefbb06f96aa7fc",
+    "record_ids": [
+      "b55d27720396423fbc1cf28217efff72",
+      "cac36fe9d64a44a29e8d9c776cdc9cbf"
+    ],
+    "recommended_record_id": "b55d27720396423fbc1cf28217efff72",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "b55d27720396423fbc1cf28217efff72",
+        "right": "cac36fe9d64a44a29e8d9c776cdc9cbf",
+        "method": "Exact cleaned title",
+        "value": "a randomized double masked multicenter 3 arm pivotal phase 2 3 study to evaluate the efficacy and safety of intravitreal ivt eye201 mk 8748 compared to aflibercept 2 mg in participants with neovascular age related macular degeneration nvamd",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Exact cleaned title"
+    ]
+  },
+  {
+    "group_id": "db5c39af1b0c40bdbae74207da9948b5",
+    "record_ids": [
+      "9eda2a69397f4c24baf4d58b48af5828",
+      "1be242afce0d40ceb8676295cef98ecd"
+    ],
+    "recommended_record_id": "9eda2a69397f4c24baf4d58b48af5828",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [
+      "9eda2a69397f4c24baf4d58b48af5828",
+      "1be242afce0d40ceb8676295cef98ecd"
+    ],
+    "edges": [
+      {
+        "left": "9eda2a69397f4c24baf4d58b48af5828",
+        "right": "1be242afce0d40ceb8676295cef98ecd",
+        "method": "Conference abstract title + first author",
+        "value": "a rare case of spontaneous hyphaema secondary to disseminated intravascular coagulation",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Conference abstract title + first author"
+    ]
+  },
+  {
+    "group_id": "30845d18625249848afe222d609a788d",
+    "record_ids": [
+      "8e4b075e556e4d3d947aba7aec3c8052",
+      "2a7fc785e5c1484ebe9d7c3373ccab21"
+    ],
+    "recommended_record_id": "8e4b075e556e4d3d947aba7aec3c8052",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "8e4b075e556e4d3d947aba7aec3c8052",
+        "right": "2a7fc785e5c1484ebe9d7c3373ccab21",
+        "method": "Fuzzy cleaned title",
+        "value": "",
+        "score": 95.8
+      }
+    ],
+    "methods": [
+      "Fuzzy cleaned title"
+    ]
+  },
+  {
+    "group_id": "cabb013b5809438f8a919ad5ff2fb2f2",
+    "record_ids": [
+      "d94915c82b594fb08a1189d87de33b1e",
+      "87c5be77b7dd44109251125ffbeaac26"
+    ],
+    "recommended_record_id": "87c5be77b7dd44109251125ffbeaac26",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "d94915c82b594fb08a1189d87de33b1e",
+        "right": "87c5be77b7dd44109251125ffbeaac26",
+        "method": "Fuzzy cleaned title",
+        "value": "",
+        "score": 97.3
+      }
+    ],
+    "methods": [
+      "Fuzzy cleaned title"
+    ]
+  },
+  {
+    "group_id": "4da0c31020b7404d85fa30c0254fc63c",
+    "record_ids": [
+      "21e75cd40bb14776a01a28e0c21a8e4a",
+      "0958f39ab90342758b0e8bbe2445d362"
+    ],
+    "recommended_record_id": "21e75cd40bb14776a01a28e0c21a8e4a",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "21e75cd40bb14776a01a28e0c21a8e4a",
+        "right": "0958f39ab90342758b0e8bbe2445d362",
+        "method": "Exact DOI",
+        "value": "10.1167/iovs.67.4.19",
+        "score": 100.0
+      },
+      {
+        "left": "21e75cd40bb14776a01a28e0c21a8e4a",
+        "right": "0958f39ab90342758b0e8bbe2445d362",
+        "method": "Exact cleaned title",
+        "value": "age specific increases in the prevalence and treatment burden of neovascular age related macular degeneration in a super aged society",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Exact DOI",
+      "Exact cleaned title"
+    ]
+  },
+  {
+    "group_id": "47da720283bc434dba0bf3f00d93f5d5",
+    "record_ids": [
+      "9cf1d540ee3c45a9a61764827b884a1c",
+      "d73698f0cf9e46f4a6314002d8644843"
+    ],
+    "recommended_record_id": "9cf1d540ee3c45a9a61764827b884a1c",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "9cf1d540ee3c45a9a61764827b884a1c",
+        "right": "d73698f0cf9e46f4a6314002d8644843",
+        "method": "Exact cleaned title",
+        "value": "an open label multicenter extension study to evaluate the safety and tolerability of ranibizumab in subjects with choroidal neovascularization cnv secondary to age related macular degeneration amd or macular edema secondary to retinal vein occlusion rvo who have completed a genentech sponsored ranibizumab study",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Exact cleaned title"
+    ]
+  },
+  {
+    "group_id": "242611733f914871a0608bd1aa2b94d8",
+    "record_ids": [
+      "3d05167b3ee14731bbca6ac827aa9452",
+      "f3dc9026d07441f79640b1d538939c15"
+    ],
+    "recommended_record_id": "f3dc9026d07441f79640b1d538939c15",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "3d05167b3ee14731bbca6ac827aa9452",
+        "right": "f3dc9026d07441f79640b1d538939c15",
+        "method": "Exact cleaned title",
+        "value": "an open label multicenter study to evaluate the efficacy and safety of ranibizumab 0 5 mg in patients with subfoveal choroidal neovascularization secondary to age related macular degeneration over 12 months",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Exact cleaned title"
+    ]
+  },
+  {
+    "group_id": "c53cc8f2a9ff4becb93771917ff08431",
+    "record_ids": [
+      "1ba7d732315a41d0baf9864530913dcf",
+      "97656ec11863445681f4908d01e5a486"
+    ],
+    "recommended_record_id": "1ba7d732315a41d0baf9864530913dcf",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [
+      "97656ec11863445681f4908d01e5a486"
+    ],
+    "edges": [
+      {
+        "left": "1ba7d732315a41d0baf9864530913dcf",
+        "right": "97656ec11863445681f4908d01e5a486",
+        "method": "Conference abstract title + first author",
+        "value": "",
+        "score": 99.1
+      }
+    ],
+    "methods": [
+      "Conference abstract title + first author"
+    ]
+  },
+  {
+    "group_id": "bb83deb8f8d04c42bc9b5328b574c587",
+    "record_ids": [
+      "c2c50aec79c84bef871f2f23d98c490f",
+      "20d9f28ee90c4b9aa4e5bf855c51003d"
+    ],
+    "recommended_record_id": "20d9f28ee90c4b9aa4e5bf855c51003d",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [
+      "c2c50aec79c84bef871f2f23d98c490f"
+    ],
+    "edges": [
+      {
+        "left": "c2c50aec79c84bef871f2f23d98c490f",
+        "right": "20d9f28ee90c4b9aa4e5bf855c51003d",
+        "method": "Conference abstract title + first author",
+        "value": "association of age related macular degeneration with cholelithiasis",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Conference abstract title + first author"
+    ]
+  },
+  {
+    "group_id": "59904c0cb98b46ad8bca6d10ca953c9d",
+    "record_ids": [
+      "221ae8b71dc04222adcd616f280fc861",
+      "d31e7ac4550141da85ace18d2ebcdaa7"
+    ],
+    "recommended_record_id": "d31e7ac4550141da85ace18d2ebcdaa7",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [
+      "221ae8b71dc04222adcd616f280fc861"
+    ],
+    "edges": [
+      {
+        "left": "221ae8b71dc04222adcd616f280fc861",
+        "right": "d31e7ac4550141da85ace18d2ebcdaa7",
+        "method": "Conference abstract title + first author",
+        "value": "",
+        "score": 99.3
+      }
+    ],
+    "methods": [
+      "Conference abstract title + first author"
+    ]
+  },
+  {
+    "group_id": "41373eaa445045ae8f061ba0a3708b07",
+    "record_ids": [
+      "f65e8b7f0e254c739ab3568f90c6cf8f",
+      "7c1b986a1ce646acaa50e2e4f894c6b3"
+    ],
+    "recommended_record_id": "7c1b986a1ce646acaa50e2e4f894c6b3",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [
+      "f65e8b7f0e254c739ab3568f90c6cf8f"
+    ],
+    "edges": [
+      {
+        "left": "f65e8b7f0e254c739ab3568f90c6cf8f",
+        "right": "7c1b986a1ce646acaa50e2e4f894c6b3",
+        "method": "Conference abstract title + first author",
+        "value": "",
+        "score": 99.5
+      }
+    ],
+    "methods": [
+      "Conference abstract title + first author"
+    ]
+  },
+  {
+    "group_id": "e8650020a8ca47a683a99f6b271e5b7c",
+    "record_ids": [
+      "cb8867263cf94266bea2e98bea41ab75",
+      "6a7462ab20cc4e0b9631712a50689fe7"
+    ],
+    "recommended_record_id": "cb8867263cf94266bea2e98bea41ab75",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [
+      "6a7462ab20cc4e0b9631712a50689fe7"
+    ],
+    "edges": [
+      {
+        "left": "cb8867263cf94266bea2e98bea41ab75",
+        "right": "6a7462ab20cc4e0b9631712a50689fe7",
+        "method": "Conference abstract title + first author",
+        "value": "",
+        "score": 98.8
+      }
+    ],
+    "methods": [
+      "Conference abstract title + first author"
+    ]
+  },
+  {
+    "group_id": "48152ca83e614e6fac951105a2c4dc7b",
+    "record_ids": [
+      "413fa7dbfddb4d4a820b5d05df623bf3",
+      "0ed9c9a534cf4532bd8146552ab3b9f5"
+    ],
+    "recommended_record_id": "413fa7dbfddb4d4a820b5d05df623bf3",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [
+      "413fa7dbfddb4d4a820b5d05df623bf3",
+      "0ed9c9a534cf4532bd8146552ab3b9f5"
+    ],
+    "edges": [
+      {
+        "left": "413fa7dbfddb4d4a820b5d05df623bf3",
+        "right": "0ed9c9a534cf4532bd8146552ab3b9f5",
+        "method": "Conference abstract title + first author",
+        "value": "",
+        "score": 97.8
+      }
+    ],
+    "methods": [
+      "Conference abstract title + first author"
+    ]
+  },
+  {
+    "group_id": "1d9f1bd336dd40e08fbcff962da65ecc",
+    "record_ids": [
+      "55565db8014a498e85c8d717eb197d74",
+      "2df3efc8b69b41e5a0d41c8c4e363ab9"
+    ],
+    "recommended_record_id": "55565db8014a498e85c8d717eb197d74",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [
+      "2df3efc8b69b41e5a0d41c8c4e363ab9"
+    ],
+    "edges": [
+      {
+        "left": "55565db8014a498e85c8d717eb197d74",
+        "right": "2df3efc8b69b41e5a0d41c8c4e363ab9",
+        "method": "Conference abstract title + first author",
+        "value": "",
+        "score": 99.1
+      }
+    ],
+    "methods": [
+      "Conference abstract title + first author"
+    ]
+  },
+  {
+    "group_id": "d3b37e65c1fe40718402b8be58851eb9",
+    "record_ids": [
+      "9ad3fb6a851b42c69011a05766adc165",
+      "cdeaab2f49c84d0ea2cc671f1c38d605"
+    ],
+    "recommended_record_id": "9ad3fb6a851b42c69011a05766adc165",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [
+      "9ad3fb6a851b42c69011a05766adc165",
+      "cdeaab2f49c84d0ea2cc671f1c38d605"
+    ],
+    "edges": [
+      {
+        "left": "9ad3fb6a851b42c69011a05766adc165",
+        "right": "cdeaab2f49c84d0ea2cc671f1c38d605",
+        "method": "Conference abstract title + first author",
+        "value": "10.1002/alz.077316",
+        "score": 100.0
+      },
+      {
+        "left": "9ad3fb6a851b42c69011a05766adc165",
+        "right": "cdeaab2f49c84d0ea2cc671f1c38d605",
+        "method": "Conference abstract title + first author",
+        "value": "",
+        "score": 99.7
+      }
+    ],
+    "methods": [
+      "Conference abstract title + first author"
+    ]
+  },
+  {
+    "group_id": "2916a975d73c4c25a7088b929762e2e1",
+    "record_ids": [
+      "1bf523ef00a743a0ae9bc8439bd156aa",
+      "60c0ff2b244147729ea1fc93350455eb"
+    ],
+    "recommended_record_id": "1bf523ef00a743a0ae9bc8439bd156aa",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [
+      "1bf523ef00a743a0ae9bc8439bd156aa",
+      "60c0ff2b244147729ea1fc93350455eb"
+    ],
+    "edges": [
+      {
+        "left": "1bf523ef00a743a0ae9bc8439bd156aa",
+        "right": "60c0ff2b244147729ea1fc93350455eb",
+        "method": "Conference abstract title + first author",
+        "value": "effectiveness and safety of faricimab in eyes with namd in the united kingdom 18 month results from the farwide namd study",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Conference abstract title + first author"
+    ]
+  },
+  {
+    "group_id": "16776dfda34942f9b00b018a9f2b0671",
+    "record_ids": [
+      "a1f9a43feecd4513ad140815a96998ed",
+      "6d437ab910ee421eb8743328759796a8"
+    ],
+    "recommended_record_id": "a1f9a43feecd4513ad140815a96998ed",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "a1f9a43feecd4513ad140815a96998ed",
+        "right": "6d437ab910ee421eb8743328759796a8",
+        "method": "Exact DOI",
+        "value": "10.1097/icb.0000000000001576",
+        "score": 100.0
+      },
+      {
+        "left": "a1f9a43feecd4513ad140815a96998ed",
+        "right": "6d437ab910ee421eb8743328759796a8",
+        "method": "Exact cleaned title",
+        "value": "en face depth resolved optical coherence tomography angiography monitoring of macular outer retinal deposits in a case of multifocal choroiditis mimicking syphilitic uveitis",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Exact DOI",
+      "Exact cleaned title"
+    ]
+  },
+  {
+    "group_id": "e62b0e6385524892b5cb70fc8a390d8d",
+    "record_ids": [
+      "f59be35aa7c845358adeb300aa95c3d6",
+      "8c5b9ae686c647e488d088be33a8783a"
+    ],
+    "recommended_record_id": "f59be35aa7c845358adeb300aa95c3d6",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [
+      "f59be35aa7c845358adeb300aa95c3d6",
+      "8c5b9ae686c647e488d088be33a8783a"
+    ],
+    "edges": [
+      {
+        "left": "f59be35aa7c845358adeb300aa95c3d6",
+        "right": "8c5b9ae686c647e488d088be33a8783a",
+        "method": "Conference abstract title + first author",
+        "value": "evaluating systemic complement profiles in patients with age related macular degeneration",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Conference abstract title + first author"
+    ]
+  },
+  {
+    "group_id": "af77d70eaf97459d8cb2c3ad53894421",
+    "record_ids": [
+      "ed5d821b5c6746eca386aa7a8914c741",
+      "32dd1b8fe0f548f4afecddca4457a05f"
+    ],
+    "recommended_record_id": "32dd1b8fe0f548f4afecddca4457a05f",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "ed5d821b5c6746eca386aa7a8914c741",
+        "right": "32dd1b8fe0f548f4afecddca4457a05f",
+        "method": "Fuzzy cleaned title",
+        "value": "",
+        "score": 98.1
+      }
+    ],
+    "methods": [
+      "Fuzzy cleaned title"
+    ]
+  },
+  {
+    "group_id": "d2868ebdf44841afa05833691dbd83b2",
+    "record_ids": [
+      "ece3e6d32f874e16bee1eec77b6ab4da",
+      "64a9131d87714333890311faf3e0da94"
+    ],
+    "recommended_record_id": "ece3e6d32f874e16bee1eec77b6ab4da",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "ece3e6d32f874e16bee1eec77b6ab4da",
+        "right": "64a9131d87714333890311faf3e0da94",
+        "method": "Fuzzy cleaned title",
+        "value": "",
+        "score": 95.6
+      }
+    ],
+    "methods": [
+      "Fuzzy cleaned title"
+    ]
+  },
+  {
+    "group_id": "8bd5185804f94c9cb81a9a66b7e9d1f6",
+    "record_ids": [
+      "f41a22b189b9444195ef2e86ab932ac2",
+      "5005a9eb04fe4ac6b0261a72799d174d"
+    ],
+    "recommended_record_id": "5005a9eb04fe4ac6b0261a72799d174d",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [
+      "f41a22b189b9444195ef2e86ab932ac2"
+    ],
+    "edges": [
+      {
+        "left": "f41a22b189b9444195ef2e86ab932ac2",
+        "right": "5005a9eb04fe4ac6b0261a72799d174d",
+        "method": "Conference abstract title + first author",
+        "value": "",
+        "score": 97.6
+      }
+    ],
+    "methods": [
+      "Conference abstract title + first author"
+    ]
+  },
+  {
+    "group_id": "2f3034c770164cc88ae62d09c851f86a",
+    "record_ids": [
+      "15dafe12809f4693b31beddd3c2c5d4a",
+      "b65b946b2a1747ea9bcf214f7b0f3c30"
+    ],
+    "recommended_record_id": "15dafe12809f4693b31beddd3c2c5d4a",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "15dafe12809f4693b31beddd3c2c5d4a",
+        "right": "b65b946b2a1747ea9bcf214f7b0f3c30",
+        "method": "Exact DOI",
+        "value": "10.1016/j.jfo.2026.104802",
+        "score": 100.0
+      },
+      {
+        "left": "15dafe12809f4693b31beddd3c2c5d4a",
+        "right": "b65b946b2a1747ea9bcf214f7b0f3c30",
+        "method": "Exact cleaned title",
+        "value": "intraretinal neovascular loop associated with nascent geographic atrophy and quiescent neovascularization a possible novel presentation of geographic atrophy associated intraretinal neovascularization",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Exact DOI",
+      "Exact cleaned title"
+    ]
+  },
+  {
+    "group_id": "46205ff7a9e54d7396848e9a08fcc17f",
+    "record_ids": [
+      "64d86793a3cf42df891122cb1a93bda5",
+      "5cbd0c107e6e4b32b72c77bc575a7605"
+    ],
+    "recommended_record_id": "64d86793a3cf42df891122cb1a93bda5",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "64d86793a3cf42df891122cb1a93bda5",
+        "right": "5cbd0c107e6e4b32b72c77bc575a7605",
+        "method": "Exact DOI",
+        "value": "10.2174/0113862073342212250102042734",
+        "score": 100.0
+      },
+      {
+        "left": "64d86793a3cf42df891122cb1a93bda5",
+        "right": "5cbd0c107e6e4b32b72c77bc575a7605",
+        "method": "Exact cleaned title",
+        "value": "investigation of lncrna expression profiles and analysis of immune related lncrna mirna mrna networks in neovascular age related macular degeneration",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Exact DOI",
+      "Exact cleaned title"
+    ]
+  },
+  {
+    "group_id": "656f3a3b02854457864312341023d506",
+    "record_ids": [
+      "b11bd0afc7d34923abfb6fd9dc887ac1",
+      "5156c6c1d3cc42c481a969cfdc9aa809"
+    ],
+    "recommended_record_id": "b11bd0afc7d34923abfb6fd9dc887ac1",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [
+      "b11bd0afc7d34923abfb6fd9dc887ac1",
+      "5156c6c1d3cc42c481a969cfdc9aa809"
+    ],
+    "edges": [
+      {
+        "left": "b11bd0afc7d34923abfb6fd9dc887ac1",
+        "right": "5156c6c1d3cc42c481a969cfdc9aa809",
+        "method": "Conference abstract title + first author",
+        "value": "it was all yellow a rare case of adult onset coats disease",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Conference abstract title + first author"
+    ]
+  },
+  {
+    "group_id": "01108200bc804377af2a3eac222d6b54",
+    "record_ids": [
+      "a17018b1734149309fc75096d88588e3",
+      "fff41b935b0c4c1186c2958d7c6f10e7"
+    ],
+    "recommended_record_id": "a17018b1734149309fc75096d88588e3",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "a17018b1734149309fc75096d88588e3",
+        "right": "fff41b935b0c4c1186c2958d7c6f10e7",
+        "method": "Exact DOI",
+        "value": "10.1186/s12938-025-01439-9",
+        "score": 100.0
+      },
+      {
+        "left": "a17018b1734149309fc75096d88588e3",
+        "right": "fff41b935b0c4c1186c2958d7c6f10e7",
+        "method": "Exact cleaned title",
+        "value": "lesion detection in age related macular degeneration with a multi modal imaging and machine learning approach",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Exact DOI",
+      "Exact cleaned title"
+    ]
+  },
+  {
+    "group_id": "de8622919afd42ab8c1bf636c11e41c8",
+    "record_ids": [
+      "c62a1b83f4744c7a9643d071913e0b3c",
+      "5fa8da431e49410880169676bafa7a35"
+    ],
+    "recommended_record_id": "5fa8da431e49410880169676bafa7a35",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "c62a1b83f4744c7a9643d071913e0b3c",
+        "right": "5fa8da431e49410880169676bafa7a35",
+        "method": "Exact cleaned title",
+        "value": "long term outcome of punctate inner choroidopathy or multifocal choroiditis with active choroidal neovascularization managed with anti vascular endothelial growth factor",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Exact cleaned title"
+    ]
+  },
+  {
+    "group_id": "dbd37ddba7db40c68a46bc3d71d850fc",
+    "record_ids": [
+      "1dba4c7994ac49b7a50226869472b9fb",
+      "2701bca5b3db47f1b7d14fb00012281a"
+    ],
+    "recommended_record_id": "1dba4c7994ac49b7a50226869472b9fb",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [
+      "2701bca5b3db47f1b7d14fb00012281a"
+    ],
+    "edges": [
+      {
+        "left": "1dba4c7994ac49b7a50226869472b9fb",
+        "right": "2701bca5b3db47f1b7d14fb00012281a",
+        "method": "Conference abstract title + first author",
+        "value": "long term visual outcomes of patients with neovascular age related macular degeneration treated with anti vegf therapy lost to follow up",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Conference abstract title + first author"
+    ]
+  },
+  {
+    "group_id": "8aa9be015ae24ee0836a81d554c84eea",
+    "record_ids": [
+      "adc99af6e6274f43bfcc14c48fecbc04",
+      "128050d9ec194eb199ebb99413b62823"
+    ],
+    "recommended_record_id": "adc99af6e6274f43bfcc14c48fecbc04",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [
+      "adc99af6e6274f43bfcc14c48fecbc04",
+      "128050d9ec194eb199ebb99413b62823"
+    ],
+    "edges": [
+      {
+        "left": "adc99af6e6274f43bfcc14c48fecbc04",
+        "right": "128050d9ec194eb199ebb99413b62823",
+        "method": "Conference abstract title + first author",
+        "value": "paracentral acute middle maculopathy in a healthy pregnant woman",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Conference abstract title + first author"
+    ]
+  },
+  {
+    "group_id": "aadb06c8e4a046e08ae7ed8cda6baa17",
+    "record_ids": [
+      "fd8b25a3769d4ee1a0ae6b5e0df58ed8",
+      "f63b81142c09471c8af2af2af5c02a34"
+    ],
+    "recommended_record_id": "fd8b25a3769d4ee1a0ae6b5e0df58ed8",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [
+      "f63b81142c09471c8af2af2af5c02a34"
+    ],
+    "edges": [
+      {
+        "left": "fd8b25a3769d4ee1a0ae6b5e0df58ed8",
+        "right": "f63b81142c09471c8af2af2af5c02a34",
+        "method": "Conference abstract title + first author",
+        "value": "parafoveal dark adaptation in early and intermediate age related macular degeneration",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Conference abstract title + first author"
+    ]
+  },
+  {
+    "group_id": "b2a16fc1457c47989e7a7335310fbc4e",
+    "record_ids": [
+      "935a3fef5a77451b8e983964bd21b15d",
+      "9ff3cfe163b94df292e65aba4037fff3"
+    ],
+    "recommended_record_id": "935a3fef5a77451b8e983964bd21b15d",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "935a3fef5a77451b8e983964bd21b15d",
+        "right": "9ff3cfe163b94df292e65aba4037fff3",
+        "method": "Exact cleaned title",
+        "value": "phase 1 2a dose escalation study of voy 101 in patients with advanced non neovascular age related macular degeneration",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Exact cleaned title"
+    ]
+  },
+  {
+    "group_id": "d93585848db84059994ca26781d11fc2",
+    "record_ids": [
+      "5d19ecdc1271428d9b0d5d01b0c0fc19",
+      "7352ae1dcdbb4643af4a1dfc32a54439"
+    ],
+    "recommended_record_id": "5d19ecdc1271428d9b0d5d01b0c0fc19",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "5d19ecdc1271428d9b0d5d01b0c0fc19",
+        "right": "7352ae1dcdbb4643af4a1dfc32a54439",
+        "method": "Fuzzy cleaned title",
+        "value": "",
+        "score": 98.8
+      }
+    ],
+    "methods": [
+      "Fuzzy cleaned title"
+    ]
+  },
+  {
+    "group_id": "0718feb8f78748df831533b62cef60cc",
+    "record_ids": [
+      "c96ccda3632e4f0bbaa48b576cf39c2d",
+      "8cc5e9eacb144a7e92f316495aa66d0b"
+    ],
+    "recommended_record_id": "8cc5e9eacb144a7e92f316495aa66d0b",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "c96ccda3632e4f0bbaa48b576cf39c2d",
+        "right": "8cc5e9eacb144a7e92f316495aa66d0b",
+        "method": "Fuzzy cleaned title",
+        "value": "",
+        "score": 98.6
+      }
+    ],
+    "methods": [
+      "Fuzzy cleaned title"
+    ]
+  },
+  {
+    "group_id": "d0c2bb1542cb480a9fc6d1541e3dc150",
+    "record_ids": [
+      "9c7565546c24454d9faa9a936064ed37",
+      "2a00cf9067c6458a9b16946613bfacbc"
+    ],
+    "recommended_record_id": "2a00cf9067c6458a9b16946613bfacbc",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "9c7565546c24454d9faa9a936064ed37",
+        "right": "2a00cf9067c6458a9b16946613bfacbc",
+        "method": "Fuzzy cleaned title",
+        "value": "",
+        "score": 97.8
+      }
+    ],
+    "methods": [
+      "Fuzzy cleaned title"
+    ]
+  },
+  {
+    "group_id": "66b5d19db3bf42129613f90e76963feb",
+    "record_ids": [
+      "7c4f8f3c64f24b71b3a596030490f6f4",
+      "7b8528dbd14b48909bf85c5511a39553"
+    ],
+    "recommended_record_id": "7c4f8f3c64f24b71b3a596030490f6f4",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "7c4f8f3c64f24b71b3a596030490f6f4",
+        "right": "7b8528dbd14b48909bf85c5511a39553",
+        "method": "Exact cleaned title",
+        "value": "pilot study of wa ng telescope prosthesis in patients with central vision impairment associated with end stage age related macular degeneration",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Exact cleaned title"
+    ]
+  },
+  {
+    "group_id": "a3002ae1debc4120974e2ff5fd9d5b95",
+    "record_ids": [
+      "f6d6d9560ab546aba9f14c086b15bad1",
+      "4dd3c154198a46fd88308b428fbca907"
+    ],
+    "recommended_record_id": "f6d6d9560ab546aba9f14c086b15bad1",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "f6d6d9560ab546aba9f14c086b15bad1",
+        "right": "4dd3c154198a46fd88308b428fbca907",
+        "method": "Fuzzy cleaned title",
+        "value": "",
+        "score": 93.6
+      }
+    ],
+    "methods": [
+      "Fuzzy cleaned title"
+    ]
+  },
+  {
+    "group_id": "f59a6207d1304aa28b6a17233107f1b2",
+    "record_ids": [
+      "1dc4dcfafa3543e0a63e7fec425d8f9b",
+      "23d34fa8fe87473da5f17dc1b155d775"
+    ],
+    "recommended_record_id": "23d34fa8fe87473da5f17dc1b155d775",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [
+      "1dc4dcfafa3543e0a63e7fec425d8f9b",
+      "23d34fa8fe87473da5f17dc1b155d775"
+    ],
+    "edges": [
+      {
+        "left": "1dc4dcfafa3543e0a63e7fec425d8f9b",
+        "right": "23d34fa8fe87473da5f17dc1b155d775",
+        "method": "Conference abstract title + first author",
+        "value": "10.1093/ageing/afw159.182",
+        "score": 100.0
+      },
+      {
+        "left": "1dc4dcfafa3543e0a63e7fec425d8f9b",
+        "right": "23d34fa8fe87473da5f17dc1b155d775",
+        "method": "Conference abstract title + first author",
+        "value": "relationship between prevalence and awareness of agerelated macular degeneration and plasma concentrations of lutein and zeaxanthin in an older population",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Conference abstract title + first author"
+    ]
+  },
+  {
+    "group_id": "1bd0740cb1e142328511896fe227ac75",
+    "record_ids": [
+      "f0839ea0a05742fb921e41739a6da74a",
+      "f71383da68b54cb6b3167c6995ddff49"
+    ],
+    "recommended_record_id": "f0839ea0a05742fb921e41739a6da74a",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "f0839ea0a05742fb921e41739a6da74a",
+        "right": "f71383da68b54cb6b3167c6995ddff49",
+        "method": "Exact DOI",
+        "value": "10.1097/iae.0000000000004697",
+        "score": 100.0
+      },
+      {
+        "left": "f0839ea0a05742fb921e41739a6da74a",
+        "right": "f71383da68b54cb6b3167c6995ddff49",
+        "method": "Exact cleaned title",
+        "value": "role of inflammation in atrophy development and progression in pathologic myopia",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Exact DOI",
+      "Exact cleaned title"
+    ]
+  },
+  {
+    "group_id": "989420ba471640d88ca9ac796d748d26",
+    "record_ids": [
+      "0afc6ba2bacb4ddfab7cb8e00491365d",
+      "b30372f1532a4975937e0bef330328ba"
+    ],
+    "recommended_record_id": "b30372f1532a4975937e0bef330328ba",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "0afc6ba2bacb4ddfab7cb8e00491365d",
+        "right": "b30372f1532a4975937e0bef330328ba",
+        "method": "Fuzzy cleaned title",
+        "value": "",
+        "score": 97.1
+      }
+    ],
+    "methods": [
+      "Fuzzy cleaned title"
+    ]
+  },
+  {
+    "group_id": "7358e201437147a4a29afef899ed70ec",
+    "record_ids": [
+      "be38c1f90f9e437f9ea802029aa7d496",
+      "5451b6ad602749dda5d97d60c9ff3de9"
+    ],
+    "recommended_record_id": "be38c1f90f9e437f9ea802029aa7d496",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [
+      "5451b6ad602749dda5d97d60c9ff3de9"
+    ],
+    "edges": [
+      {
+        "left": "be38c1f90f9e437f9ea802029aa7d496",
+        "right": "5451b6ad602749dda5d97d60c9ff3de9",
+        "method": "Conference abstract title + first author",
+        "value": "",
+        "score": 97.9
+      }
+    ],
+    "methods": [
+      "Conference abstract title + first author"
+    ]
+  },
+  {
+    "group_id": "56781fb9a4d94396abb85f805659b8d1",
+    "record_ids": [
+      "889828183fa14ef4a4af271315b39091",
+      "d9cd40232ac640f6b8422c797ec139b8"
+    ],
+    "recommended_record_id": "889828183fa14ef4a4af271315b39091",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "889828183fa14ef4a4af271315b39091",
+        "right": "d9cd40232ac640f6b8422c797ec139b8",
+        "method": "Exact cleaned title",
+        "value": "treatment of exudative age related macular degeneration with aflibercept combined with pranoprofen eye drops or nutraceutical support with omega 3 a randomized trial",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Exact cleaned title"
+    ]
+  },
+  {
+    "group_id": "068c0826a03947c88cb67b54f9376b8e",
+    "record_ids": [
+      "7bb85a55654f4871a606e08e30df183f",
+      "06c053e1a10640dea9e00b24026434e3"
+    ],
+    "recommended_record_id": "7bb85a55654f4871a606e08e30df183f",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [
+      "7bb85a55654f4871a606e08e30df183f",
+      "06c053e1a10640dea9e00b24026434e3"
+    ],
+    "edges": [
+      {
+        "left": "7bb85a55654f4871a606e08e30df183f",
+        "right": "06c053e1a10640dea9e00b24026434e3",
+        "method": "Conference abstract title + first author",
+        "value": "trends and indication of intravitreal anti vegf and ozurdex in medical retina subspeciality centre hospital shah alam",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Conference abstract title + first author"
+    ]
+  },
+  {
+    "group_id": "9b966d18ae2b4d62a197ee1fc2c8a08a",
+    "record_ids": [
+      "1ee340d2323c4df786abfd74bb69655b",
+      "b181845b1f014cbf97ca30221e8f437f"
+    ],
+    "recommended_record_id": "b181845b1f014cbf97ca30221e8f437f",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "1ee340d2323c4df786abfd74bb69655b",
+        "right": "b181845b1f014cbf97ca30221e8f437f",
+        "method": "Fuzzy cleaned title",
+        "value": "",
+        "score": 98.6
+      }
+    ],
+    "methods": [
+      "Fuzzy cleaned title"
+    ]
+  },
+  {
+    "group_id": "c6271ad2dd4641fd8d604f6d1e7748e1",
+    "record_ids": [
+      "a5d376353d12499e8fad04ecd30ad47d",
+      "39036f16f35a452688656cb2f8eab700"
+    ],
+    "recommended_record_id": "a5d376353d12499e8fad04ecd30ad47d",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "a5d376353d12499e8fad04ecd30ad47d",
+        "right": "39036f16f35a452688656cb2f8eab700",
+        "method": "Exact cleaned title",
+        "value": "vegf and htra1 dna polymorphisms in neovascular amd pathogenesis and response to lucentis",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Exact cleaned title"
+    ]
+  },
+  {
+    "group_id": "953e19bd68c4420b98fbf0169a7dc3bd",
+    "record_ids": [
+      "3bf2cc580920450abe9f2cb042b97911",
+      "5f71800447d34a70b84dade5b91e8f5a"
+    ],
+    "recommended_record_id": "3bf2cc580920450abe9f2cb042b97911",
+    "potential_protocol_record_ids": [],
+    "conference_abstract_record_ids": [],
+    "edges": [
+      {
+        "left": "3bf2cc580920450abe9f2cb042b97911",
+        "right": "5f71800447d34a70b84dade5b91e8f5a",
+        "method": "Exact cleaned title",
+        "value": "vision improvement for patients with age related macular degeneration",
+        "score": 100.0
+      }
+    ],
+    "methods": [
+      "Exact cleaned title"
+    ]
+  }
+]

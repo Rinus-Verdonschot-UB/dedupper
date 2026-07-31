@@ -14,12 +14,12 @@ from typing import Any, Iterable
 import pandas as pd
 from charset_normalizer import from_bytes
 
+from .doi import DOI_RE, extract_doi
 from .models import ArticleRecord, SourceTable
 
 
 SUPPORTED_EXTENSIONS = {".ris", ".txt", ".csv", ".tsv", ".xlsx", ".xls"}
 RIS_TAG_RE = re.compile(r"^\s*([A-Za-z0-9]{2,4})\s*-\s?(.*)$")
-DOI_RE = re.compile(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", re.IGNORECASE)
 YEAR_RE = re.compile(r"(?<!\d)(1[5-9]\d{2}|20\d{2}|21\d{2})(?!\d)")
 PUBMED_RECORD_START_RE = re.compile(
     r"(?m)^[ \t]*(?P<number>\d+)\.[ \t]+(?P<citation>\S.*)$"
@@ -28,6 +28,12 @@ PUBMED_CITATION_YEAR_RE = re.compile(
     r"\.\s*(?:1[5-9]\d{2}|20\d{2}|21\d{2})(?:\b|;)"
 )
 PMID_RE = re.compile(r"(?im)^[ \t]*PMID:\s*(\d+)")
+PUBMED_METADATA_HEADING_RE = re.compile(
+    r"^(?:doi|pmid|pmcid|publication types?|mesh terms?|substances?|"
+    r"grant support|conflict of interest statement|clinical trial registration|"
+    r"associated data)\s*:",
+    re.IGNORECASE,
+)
 
 
 class ParseError(ValueError):
@@ -189,8 +195,7 @@ def _joined_values(fields: dict[str, list[str]], tags: Iterable[str]) -> str:
 
 
 def _extract_doi(value: str) -> str:
-    match = DOI_RE.search(value or "")
-    return match.group(0).rstrip(".,;)]}") if match else ""
+    return extract_doi(value)
 
 
 def _extract_year(value: str) -> str:
@@ -202,6 +207,10 @@ def _first_author_last_name(author: str) -> str:
     author = re.sub(r"\s+", " ", author or "").strip(" ;")
     if not author:
         return ""
+    # Tabular exports often place all authors in one cell. Work only with the
+    # first listed author before deriving the surname.
+    author = re.split(r"\s*;\s*|\s*\|\s*|\s+and\s+", author, maxsplit=1)[0]
+    author = re.sub(r"\(\d[\d,\- ]*\)", "", author).strip()
     if "," in author:
         return author.split(",", 1)[0].strip()
     parts = author.split()
@@ -210,6 +219,11 @@ def _first_author_last_name(author: str) -> str:
     suffixes = {"jr", "jr.", "sr", "sr.", "ii", "iii", "iv"}
     if parts[-1].casefold() in suffixes and len(parts) > 2:
         return parts[-2]
+    initials = re.compile(r"(?:[A-ZÀ-Þ]\.?){1,8}$")
+    if initials.fullmatch(parts[-1]) and len(parts) > 1:
+        return parts[-2]
+    if initials.fullmatch(parts[0]) and len(parts) > 1:
+        return parts[-1]
     return parts[-1]
 
 
@@ -221,6 +235,7 @@ def _ris_to_record(
     author = _first_value(fields, ("AU", "A1", "A2", "ED"))
     journal = _first_value(fields, ("JO", "JF", "T2", "JA"))
     abstract = _joined_values(fields, ("AB", "N2"))
+    publication_type = _joined_values(fields, ("PT", "DT", "M3"))
     doi = _extract_doi(_first_value(fields, ("DO", "L3", "UR")))
     if not doi:
         for values in fields.values():
@@ -247,6 +262,7 @@ def _ris_to_record(
         doi=doi,
         journal=journal,
         abstract=abstract,
+        publication_type=publication_type,
         raw_fields={key: list(values) for key, values in fields.items()},
         parse_warnings=parse_warnings,
     )
@@ -395,6 +411,26 @@ def _is_pubmed_tail_metadata(value: str) -> bool:
     return normalized.startswith(prefixes)
 
 
+def _pubmed_metadata_value(paragraphs: list[str], heading: str) -> str:
+    """Return a named PubMed footer field, including wrapped/list values."""
+
+    normalized_heading = heading.casefold().rstrip(":")
+    for index, paragraph in enumerate(paragraphs):
+        label, separator, inline = paragraph.partition(":")
+        if not separator or label.strip().casefold() != normalized_heading:
+            continue
+        values = [inline.strip()] if inline.strip() else []
+        cursor = index + 1
+        while cursor < len(paragraphs):
+            value = paragraphs[cursor].strip()
+            if PUBMED_METADATA_HEADING_RE.match(value):
+                break
+            values.append(value)
+            cursor += 1
+        return "; ".join(value for value in values if value)
+    return ""
+
+
 def _pubmed_block_to_record(
     block: str, file_id: str, filename: str, row_number: int
 ) -> ArticleRecord:
@@ -467,6 +503,9 @@ def _pubmed_block_to_record(
     doi = _extract_doi(block)
     pmid_match = PMID_RE.search(block)
     pmid = pmid_match.group(1) if pmid_match else ""
+    publication_type = _pubmed_metadata_value(paragraphs, "Publication Types")
+    if not publication_type:
+        publication_type = _pubmed_metadata_value(paragraphs, "Publication Type")
     record_number = first_match.group("number")
 
     parse_warnings: list[str] = []
@@ -484,6 +523,7 @@ def _pubmed_block_to_record(
         "authors": authors,
         "author_information": affiliations,
         "abstract": abstract,
+        "publication_type": publication_type,
         "doi": doi,
         "pmid": pmid,
         "raw_text": block,
@@ -501,6 +541,7 @@ def _pubmed_block_to_record(
         doi=doi,
         journal=journal,
         abstract=abstract,
+        publication_type=publication_type,
         raw_fields=raw_fields,
         parse_warnings=parse_warnings,
     )
@@ -605,6 +646,11 @@ def detect_header_row(rows: list[list[str]], scan_limit: int = 15) -> int:
         "journal",
         "abstract",
         "abstract text",
+        "publication type",
+        "publication types",
+        "document type",
+        "article type",
+        "publicatietype",
         "summary",
         "samenvatting",
         "source",
@@ -773,6 +819,7 @@ def table_to_records(
                 doi=_extract_doi(doi_value),
                 journal=mapped("journal"),
                 abstract=mapped("abstract"),
+                publication_type=mapped("publication_type"),
                 raw_fields=raw_fields,
                 parse_warnings=parse_warnings,
             )

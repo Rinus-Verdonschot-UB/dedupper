@@ -11,6 +11,7 @@ CANONICAL_FIELDS = (
     "doi",
     "journal",
     "abstract",
+    "publication_type",
 )
 
 
@@ -56,6 +57,7 @@ class ArticleRecord:
     doi: str = ""
     journal: str = ""
     abstract: str = ""
+    publication_type: str = ""
     raw_fields: dict[str, Any] = field(default_factory=dict)
     parse_warnings: list[str] = field(default_factory=list)
 

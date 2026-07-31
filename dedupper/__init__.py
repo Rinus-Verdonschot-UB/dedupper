@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from openpyxl import Workbook
+from openpyxl.utils import get_column_letter
 from openpyxl.styles import Alignment, Font, PatternFill
 from flask import (
     Flask,
@@ -30,7 +31,11 @@ from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.exceptions import NotFound
 from werkzeug.utils import secure_filename
 
-from .dedup import apply_group_selections, find_duplicate_groups
+from .dedup import (
+    apply_group_selections,
+    conference_abstract_report,
+    find_duplicate_groups,
+)
 from .mapping import column_profiles, infer_mapping
 from .models import CANONICAL_FIELDS, SourceTable
 from .parsers import (
@@ -53,6 +58,7 @@ EXPORT_FIELDS = [
     "first_author",
     "doi",
     "journal",
+    "publication_type",
     "abstract",
     "parse_warnings",
     "raw_fields_json",
@@ -193,6 +199,7 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
                 "doi": "DOI",
                 "journal": "Journal name",
                 "abstract": "Abstract",
+                "publication_type": "Publication / document type",
             },
         )
 
@@ -254,6 +261,9 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
         records = store.load_json(job_id, "master", [])
         reports = store.load_json(job_id, "reports", [])
         groups = store.load_json(job_id, "groups", [])
+        conference_report = store.load_json(
+            job_id, "conference_abstract_report", {}
+        )
         deduplicated = store.load_json(job_id, "deduplicated")
         deduplication = store.load_json(job_id, "deduplication_report")
         selected_by_group: dict[str, list[str]] = {}
@@ -270,6 +280,7 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
             records=records,
             reports=reports,
             groups=groups,
+            conference_report=conference_report,
             by_id=by_id,
             deduplicated=deduplicated,
             deduplication=deduplication,
@@ -367,6 +378,9 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
         payload = {
             "reports": store.load_json(job_id, "reports", []),
             "duplicate_groups": store.load_json(job_id, "groups", []),
+            "conference_abstract_report": store.load_json(
+                job_id, "conference_abstract_report", {}
+            ),
             "deduplication": store.load_json(job_id, "deduplication_report"),
         }
         buffer = io.BytesIO(
@@ -495,6 +509,7 @@ def _finalize_master(
         )
 
     groups = find_duplicate_groups(records)
+    conference_report = conference_abstract_report(records, groups)
     warning_counts: dict[str, int] = defaultdict(int)
     for record in records:
         if record.get("parse_warnings"):
@@ -507,6 +522,7 @@ def _finalize_master(
     store.save_json(job_id, "master", records)
     store.save_json(job_id, "reports", list(report_data.values()))
     store.save_json(job_id, "groups", groups)
+    store.save_json(job_id, "conference_abstract_report", conference_report)
 
 
 def _records_to_csv(records: list[dict[str, Any]]) -> str:
@@ -532,7 +548,8 @@ def _records_to_xlsx(records: list[dict[str, Any]]) -> io.BytesIO:
     sheet = workbook.active
     sheet.title = "Articles"
     sheet.freeze_panes = "A2"
-    sheet.auto_filter.ref = f"A1:L{max(len(records) + 1, 1)}"
+    final_column = get_column_letter(len(EXPORT_FIELDS))
+    sheet.auto_filter.ref = f"A1:{final_column}{max(len(records) + 1, 1)}"
 
     header_fill = PatternFill("solid", fgColor="001C3D")
     for column, field in enumerate(EXPORT_FIELDS, start=1):
@@ -568,9 +585,10 @@ def _records_to_xlsx(records: list[dict[str, Any]]) -> io.BytesIO:
         "G": 22,
         "H": 30,
         "I": 34,
-        "J": 85,
-        "K": 34,
-        "L": 85,
+        "J": 30,
+        "K": 85,
+        "L": 34,
+        "M": 85,
     }
     for column, width in widths.items():
         sheet.column_dimensions[column].width = width
@@ -593,6 +611,7 @@ def _records_to_ris(records: list[dict[str, Any]]) -> str:
         output.extend(_ris_field("PY", record.get("year", "")))
         output.extend(_ris_field("JO", record.get("journal", "")))
         output.extend(_ris_field("DO", record.get("doi", "")))
+        output.extend(_ris_field("PT", record.get("publication_type", "")))
         output.extend(_ris_field("AB", record.get("abstract", "")))
         output.append("ER  -")
         output.append("")

@@ -86,6 +86,25 @@ ALIASES = {
         "ab",
         "n2",
     },
+    "publication_type": {
+        "publication type",
+        "publication types",
+        "document type",
+        "document types",
+        "article type",
+        "article types",
+        "record type",
+        "source type",
+        "publication category",
+        "document category",
+        "publicatietype",
+        "publicatie type",
+        "documenttype",
+        "document type nederlands",
+        "pt",
+        "dt",
+        "m3",
+    },
 }
 
 
@@ -209,6 +228,23 @@ def _content_score(values: list[str], field: str) -> float:
             + 0.2 * length_component
             - 0.35 * title_like_penalty,
         )
+    if field == "publication_type":
+        type_terms = sum(
+            bool(
+                re.search(
+                    r"\b(?:conference abstract|meeting abstract|journal article|"
+                    r"research article|review|systematic review|meta-analysis|"
+                    r"editorial|letter|conference paper|proceedings paper|"
+                    r"book chapter|dissertation|thesis|preprint)\b",
+                    value,
+                    re.IGNORECASE,
+                )
+            )
+            for value in sample
+        ) / total
+        short_values = sum(len(value) <= 100 for value in sample) / total
+        modest_words = sum(1 <= words <= 12 for words in word_counts) / total
+        return min(1.0, 0.72 * type_terms + 0.14 * short_values + 0.14 * modest_words)
     return 0.0
 
 
@@ -247,7 +283,9 @@ def infer_mapping(table: SourceTable) -> dict[str, dict[str, Any]]:
     shortlists: dict[str, list[str | None]] = {}
     score_lookup: dict[tuple[str, str | None], float] = {}
     for field, candidates in ranked.items():
-        selected = [item["column"] for item in candidates[:6]]
+        # Four candidates per field keeps the globally unique assignment fast
+        # now that publication type is a seventh optional canonical field.
+        selected = [item["column"] for item in candidates[:4]]
         shortlists[field] = [None, *selected]
         score_lookup[(field, None)] = 0.12
         for item in candidates:

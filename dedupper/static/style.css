@@ -411,7 +411,8 @@ input:focus {
 .status,
 .confidence,
 .recommendation,
-.protocol-flag {
+.protocol-flag,
+.conference-flag {
   display: inline-flex;
   align-items: center;
   padding: 0.33rem 0.65rem;
@@ -615,6 +616,29 @@ tbody th small {
   margin: 1.5rem 0 3rem;
 }
 
+.conference-safeguard {
+  display: grid;
+  grid-template-columns: minmax(230px, 0.7fr) minmax(320px, 1.6fr);
+  gap: 2rem;
+  align-items: start;
+  margin: -1.5rem 0 3rem;
+  padding: 1.35rem 1.5rem;
+  border: 1px solid #b8dce8;
+  border-left: 6px solid var(--blue);
+  background: var(--blue-soft);
+}
+
+.conference-safeguard h2 {
+  margin-bottom: 0;
+  font-size: 1.3rem;
+}
+
+.conference-safeguard p:last-child {
+  margin-bottom: 0;
+  color: #304c5a;
+  line-height: 1.6;
+}
+
 .metric-card {
   padding: 1.3rem;
   border: 1px solid var(--line);
@@ -740,6 +764,11 @@ tbody th small {
 .protocol-flag {
   color: var(--red);
   background: var(--red-soft);
+}
+
+.conference-flag {
+  color: var(--blue-dark);
+  background: var(--blue-soft);
 }
 
 .match-evidence {
@@ -898,7 +927,8 @@ tbody th small {
   }
 
   .feature-grid,
-  .summary-grid {
+  .summary-grid,
+  .conference-safeguard {
     grid-template-columns: 1fr;
   }
 
