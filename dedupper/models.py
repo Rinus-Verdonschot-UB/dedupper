@@ -8,8 +8,13 @@ CANONICAL_FIELDS = (
     "title",
     "year",
     "first_author",
+    "authors",
     "doi",
     "journal",
+    "pages",
+    "article_number",
+    "issn",
+    "isbn",
     "abstract",
     "publication_type",
 )
@@ -54,8 +59,13 @@ class ArticleRecord:
     title: str = ""
     year: str = ""
     first_author: str = ""
+    authors: str = ""
     doi: str = ""
     journal: str = ""
+    pages: str = ""
+    article_number: str = ""
+    issn: str = ""
+    isbn: str = ""
     abstract: str = ""
     publication_type: str = ""
     raw_fields: dict[str, Any] = field(default_factory=dict)

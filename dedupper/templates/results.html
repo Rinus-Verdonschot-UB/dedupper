@@ -91,7 +91,56 @@
       <strong>{{ total_duplicate_records }}</strong>
       <small>Includes the copies that will be kept</small>
     </article>
+    <article class="metric-card {% if review_candidates %}metric-card-alert{% endif %}">
+      <span>Needs manual review</span>
+      <strong>{{ review_candidates|length }}</strong>
+      <small>Excluded from automatic removal</small>
+    </article>
   </section>
+
+  {% if review_candidates %}
+    <section class="review-candidates" aria-labelledby="review-candidates-title">
+      <div class="review-candidates-heading">
+        <div>
+          <p class="source-label">Safety review</p>
+          <h2 id="review-candidates-title">{{ review_candidates|length }} ambiguous match(es) kept separate.</h2>
+        </div>
+        <p>
+          These records were not placed in an automatic duplicate group. An
+          identical DOI can be incorrect or reused, while an identical title
+          without supporting metadata is not enough for deletion.
+        </p>
+      </div>
+      {% for candidate in review_candidates %}
+        <article class="card conflict-card">
+          <div class="card-header">
+            <div>
+              <p class="source-label">Manual review {{ loop.index }}</p>
+              <h3>{{ candidate.label }}</h3>
+            </div>
+            <span class="status status-bad">Kept separate</span>
+          </div>
+          <p class="conflict-reason">{{ candidate.reason }}</p>
+          {% if candidate.signals %}
+            <div class="evidence-chips" aria-label="Matching evidence">
+              {% for signal in candidate.signals %}<span>{{ signal }}</span>{% endfor %}
+            </div>
+          {% endif %}
+          <div class="conflict-records">
+            {% for record_id in candidate.record_ids %}
+              {% set record = by_id[record_id] %}
+              <div>
+                <strong>{{ record.title or '(No mapped title)' }}</strong>
+                <span>{{ record.first_author or 'No author' }} · {{ record.year or 'No year' }} · {{ record.journal or 'No journal' }}</span>
+                <code>{{ record.doi or 'No DOI' }}</code>
+                <small>{{ record.source_filename }} · source row {{ record.source_row }}</small>
+              </div>
+            {% endfor %}
+          </div>
+        </article>
+      {% endfor %}
+    </section>
+  {% endif %}
 
   {% if conference_report.get('identified_records', 0) %}
     <section class="conference-safeguard" aria-labelledby="conference-safeguard-title">
@@ -124,7 +173,8 @@
         <h2>{{ deduplicated|length }} records retained.</h2>
         <p>
           {{ records|length - deduplicated|length }} duplicate record(s) removed.
-          The untouched master dataset remains available separately.
+          Compatible missing metadata was copied into retained records with a
+          field-level audit. The untouched master dataset remains available separately.
         </p>
       </div>
       <form class="export-form export-form-on-dark" action="{{ url_for('export', job_id=job_id, dataset='deduplicated') }}" method="get">
@@ -159,9 +209,10 @@
           <h2>Choose one or more records to keep from each group.</h2>
         </div>
         <p>
-          The recommended choice favours a valid DOI, then more populated
-          canonical and raw fields. Conflicting DOIs and related publications
-          such as corrections or commentaries are kept separate. A likely
+          Every group is supported by more than one bibliographic signal. The
+          recommendation favours a valid DOI, then more populated canonical and
+          raw fields. DOI metadata conflicts and related publications such as
+          corrections or commentaries are kept separate. A likely
           protocol is labelled only when it appears beside a matching
           non-protocol record, and is not recommended automatically. Conference
           abstracts sharing a proceedings DOI are grouped only when title and
@@ -178,10 +229,10 @@
             </div>
             {% if 'Conference abstract title + first author' in group.methods %}
               <span class="status status-review">Review conference match</span>
-            {% elif 'Fuzzy cleaned title' in group.methods %}
+            {% elif 'Corroborated fuzzy title' in group.methods %}
               <span class="status status-review">Review fuzzy match</span>
             {% else %}
-              <span class="status status-good">Exact match</span>
+              <span class="status status-good">Corroborated match</span>
             {% endif %}
           </div>
 
@@ -227,6 +278,13 @@
                     {{ record.year or 'No year' }} ·
                     {{ record.journal or 'No journal' }}
                   </span>
+                  {% if record.pages or record.article_number or record.issn %}
+                    <span class="record-identifiers">
+                      {% if record.pages %}pages {{ record.pages }}{% endif %}
+                      {% if record.article_number %} · article {{ record.article_number }}{% endif %}
+                      {% if record.issn %} · ISSN {{ record.issn }}{% endif %}
+                    </span>
+                  {% endif %}
                   <span class="record-doi">{{ record.doi or 'No DOI' }}</span>
                   <span class="record-source">
                     {{ record.source_filename }}
@@ -241,11 +299,13 @@
           <details class="match-evidence">
             <summary>Why these records were grouped</summary>
             {% for edge in group.edges %}
-              <p>
-                {{ edge.method }}
-                {% if edge.method == 'Fuzzy cleaned title' %}({{ edge.score }}%){% endif %}
-                {% if edge.value %}— {{ edge.value|truncate(130) }}{% endif %}
-              </p>
+              <div class="evidence-row">
+                <strong>{{ edge.method }}</strong>
+                <div class="evidence-chips">
+                  {% for signal in edge.signals %}<span>{{ signal }}</span>{% endfor %}
+                </div>
+                <small>{{ edge.reason }}</small>
+              </div>
             {% endfor %}
           </details>
         </section>
@@ -274,8 +334,11 @@
   {% else %}
     <section class="card empty-state">
       <div class="empty-icon">✓</div>
-      <h2>No compatible DOI or title duplicates were found.</h2>
-      <p>The master dataset is already the final dataset under the current rules.</p>
+      <h2>No corroborated duplicate groups were found.</h2>
+      <p>
+        The master dataset is already the final dataset under the current automatic
+        rules. Any ambiguous pairs are retained in the safety-review section above.
+      </p>
     </section>
   {% endif %}
 {% endblock %}

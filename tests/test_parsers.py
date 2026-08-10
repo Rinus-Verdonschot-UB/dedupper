@@ -70,6 +70,62 @@ def test_ris_abstract_is_promoted_to_the_canonical_record() -> None:
     )
 
 
+def test_ris_publication_type_is_promoted_to_the_canonical_record() -> None:
+    payload = (
+        b"TY  - JOUR\nTI  - A conference result\n"
+        b"PT  - Conference Abstract\nER  -\n"
+    )
+
+    records, _ = parse_ris(payload, "file1", "conference.ris")
+
+    assert records[0].publication_type == "Conference Abstract"
+
+
+def test_ris_promotes_complete_authors_pages_article_number_and_serial_ids() -> None:
+    payload = b"""TY  - JOUR
+TI  - Complete metadata example
+AU  - Van Dijk, Peter
+AU  - Jones, Anna
+SP  - 123
+EP  - 129
+C7  - e45678
+SN  - 1234-5678
+ER  -
+TY  - BOOK
+TI  - Book metadata example
+AU  - Smith, John
+SN  - 978-3-16-148410-0
+ER  -
+"""
+
+    records, _ = parse_ris(payload, "file1", "metadata.ris")
+
+    assert records[0].authors == "Van Dijk, Peter; Jones, Anna"
+    assert records[0].first_author == "Van Dijk"
+    assert records[0].pages == "123-129"
+    assert records[0].article_number == "e45678"
+    assert records[0].issn == "1234-5678"
+    assert records[1].isbn == "9783161484100"
+
+
+def test_ris_retains_complete_parenthesized_and_url_encoded_elsevier_dois() -> None:
+    payload = b"""TY  - JOUR
+TI  - Older Elsevier article
+DO  - doi:10.1016/S0140-6736(09)62124-3
+ER  -
+
+TY  - JOUR
+TI  - URL-encoded Elsevier article
+DO  - https://dx.doi.org/10.1016/S0140-6736%2824%2900915-2
+ER  -
+"""
+
+    records, _ = parse_ris(payload, "file1", "elsevier.ris")
+
+    assert records[0].doi == "10.1016/S0140-6736(09)62124-3"
+    assert records[1].doi == "10.1016/S0140-6736(24)00915-2"
+
+
 def test_pubmed_txt_parses_numbered_records_and_complete_abstracts() -> None:
     payload = """1. ORL J Otorhinolaryngol Relat Spec. 2006;68(1):23-9; discussion 29-30. doi:
 10.1159/000090487. Epub 2006 Mar 3.
@@ -91,6 +147,8 @@ Copyright (c) 2006 S. Karger AG, Basel.
 
 DOI: 10.1159/000090487
 PMID: 16514259 [Indexed for MEDLINE]
+
+Publication Types: Conference Abstract
 
 
 2. Wien Med Wochenschr. 1992;142(11-12):259-62.
@@ -125,11 +183,34 @@ PMID: 1529618 [Indexed for MEDLINE]
     assert "The second paragraph of the abstract" in records[0].abstract
     assert "Copyright" not in records[0].abstract
     assert records[0].raw_fields["pmid"] == "16514259"
+    assert records[0].publication_type == "Conference Abstract"
     assert records[1].title == "[Tinnitus: causes, diagnosis, therapy]."
     assert records[1].first_author == "Denk"
     assert records[1].year == "1992"
     assert records[1].doi == ""
     assert "non-otologic diseases" in records[1].abstract
+
+
+def test_pubmed_txt_promotes_authors_and_pagination() -> None:
+    payload = b"""1. Journal of Tests. 2024;12(3):23-9. doi: 10.1234/example.
+
+A complete PubMed article title.
+
+Smith AB(1), Jones CD.
+
+Author information:
+(1)Department of Testing.
+
+The abstract.
+
+PMID: 12345678 [Indexed for MEDLINE]
+"""
+
+    records, _ = parse_pubmed_txt(payload, "file1", "pubmed.txt")
+
+    assert records[0].authors == "Smith AB(1), Jones CD."
+    assert records[0].first_author == "Smith"
+    assert records[0].pages == "23-9"
 
 
 def test_non_pubmed_txt_is_rejected_with_a_clear_error() -> None:
@@ -167,9 +248,9 @@ def test_header_can_be_reselected_without_losing_raw_rows() -> None:
 
 def test_tabular_mapping_preserves_unmapped_raw_fields() -> None:
     payload = (
-        b"Title,Year,Abstract,Custom flag\n"
-        b"One,2020,The first abstract,KEEP-ME\n"
-        b"Two,2021,The second abstract,ALSO-ME\n"
+        b"Title,Year,Abstract,Publication Type,Custom flag\n"
+        b"One,2020,The first abstract,Conference Abstract,KEEP-ME\n"
+        b"Two,2021,The second abstract,Journal Article,ALSO-ME\n"
     )
     table = parse_delimited(payload, "file1", "rows.csv", ".csv")[0]
     records = table_to_records(
@@ -181,11 +262,13 @@ def test_tabular_mapping_preserves_unmapped_raw_fields() -> None:
             "doi": None,
             "journal": None,
             "abstract": "Abstract",
+            "publication_type": "Publication Type",
         },
     )
 
     assert len(records) == 2
     assert records[0].abstract == "The first abstract"
+    assert records[0].publication_type == "Conference Abstract"
     assert records[0].raw_fields["Custom flag"] == "KEEP-ME"
     assert records[1].source_row == 3
 

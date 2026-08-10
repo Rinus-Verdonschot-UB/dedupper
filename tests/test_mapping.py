@@ -52,3 +52,32 @@ def test_abstract_header_and_long_prose_values_are_detected() -> None:
 
     assert mapping["title"]["selected"] == "Title"
     assert mapping["abstract"]["selected"] == "Abstract"
+
+
+def test_publication_type_header_and_values_are_detected() -> None:
+    payload = (
+        "Title,Authors,DOI,Publication Type\n"
+        "First sufficiently long scientific title,Smith,10.1234/a,Conference Abstract\n"
+        "Second sufficiently long scientific title,Jones,10.1234/b,Journal Article\n"
+    ).encode()
+    table = parse_delimited(payload, "file1", "types.csv", ".csv")[0]
+    mapping = infer_mapping(table)
+
+    assert mapping["publication_type"]["selected"] == "Publication Type"
+
+
+def test_richer_bibliographic_headers_are_detected() -> None:
+    payload = (
+        "Title,Authors,Pages,Article Number,ISSN,ISBN\n"
+        '"A long and distinctive scientific article title",'
+        '"Smith J; Jones P",123-129,e45678,1234-5678,978-3-16-148410-0\n'
+    ).encode()
+    table = parse_delimited(payload, "file1", "metadata.csv", ".csv")[0]
+    mapping = infer_mapping(table)
+
+    assert mapping["authors"]["selected"] == "Authors"
+    assert mapping["first_author"]["selected"] == "Authors"
+    assert mapping["pages"]["selected"] == "Pages"
+    assert mapping["article_number"]["selected"] == "Article Number"
+    assert mapping["issn"]["selected"] == "ISSN"
+    assert mapping["isbn"]["selected"] == "ISBN"

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import itertools
 import re
 import statistics
 import unicodedata
@@ -41,14 +40,19 @@ ALIASES = {
     "first_author": {
         "first author",
         "first authors last name",
+        "eerste auteur",
+        "first author surname",
+        "first author last name",
+    },
+    "authors": {
         "author",
         "authors",
         "author names",
+        "all authors",
         "creator",
         "creators",
         "auteur",
         "auteurs",
-        "eerste auteur",
         "au",
         "a1",
     },
@@ -74,6 +78,41 @@ ALIASES = {
         "jo",
         "jf",
         "t2",
+    },
+    "pages": {
+        "pages",
+        "page",
+        "page range",
+        "start page",
+        "pagination",
+        "pagina",
+        "paginas",
+        "sp",
+        "ep",
+        "pg",
+    },
+    "article_number": {
+        "article number",
+        "article no",
+        "electronic article number",
+        "elocation id",
+        "elocationid",
+        "artikelnummer",
+        "c7",
+        "ar",
+    },
+    "issn": {
+        "issn",
+        "eissn",
+        "electronic issn",
+        "print issn",
+        "sn",
+    },
+    "isbn": {
+        "isbn",
+        "eisbn",
+        "electronic isbn",
+        "book isbn",
     },
     "abstract": {
         "abstract",
@@ -175,19 +214,28 @@ def _content_score(values: list[str], field: str) -> float:
             - 0.6 * doi_penalty
             - 0.6 * year_penalty,
         )
-    if field == "first_author":
+    if field in {"first_author", "authors"}:
         plausible_words = sum(1 <= words <= 12 for words in word_counts) / total
         name_punctuation = sum(
             bool(re.search(r"[,;]|\b[A-Z]\.?(?:\s|$)", value)) for value in sample
         ) / total
-        not_too_long = sum(len(value) <= 160 for value in sample) / total
-        title_penalty = sum(len(value) > 180 for value in sample) / total
+        max_length = 160 if field == "first_author" else 1200
+        not_too_long = sum(len(value) <= max_length for value in sample) / total
+        penalty_length = 180 if field == "first_author" else 1200
+        title_penalty = sum(len(value) > penalty_length for value in sample) / total
+        multi_author_bonus = (
+            sum(bool(re.search(r";|\band\b|,[^,]+,", value, re.I)) for value in sample)
+            / total
+            if field == "authors"
+            else 0
+        )
         return max(
             0.0,
             0.4 * plausible_words
             + 0.3 * name_punctuation
             + 0.2 * not_too_long
             + 0.1 * unique_ratio
+            + 0.2 * multi_author_bonus
             - 0.5 * title_penalty,
         )
     if field == "journal":
@@ -245,6 +293,29 @@ def _content_score(values: list[str], field: str) -> float:
         short_values = sum(len(value) <= 100 for value in sample) / total
         modest_words = sum(1 <= words <= 12 for words in word_counts) / total
         return min(1.0, 0.72 * type_terms + 0.14 * short_values + 0.14 * modest_words)
+    if field == "pages":
+        matches = sum(
+            bool(re.fullmatch(r"\s*[A-Za-z]?\d+[A-Za-z]?(?:\s*[-–—]\s*[A-Za-z]?\d+[A-Za-z]?)?\s*", value))
+            for value in sample
+        ) / total
+        return matches
+    if field == "article_number":
+        matches = sum(
+            bool(re.fullmatch(r"\s*(?:e\d{3,}|[A-Za-z]\d{5,}|\d{5,})\s*", value, re.I))
+            for value in sample
+        ) / total
+        return matches
+    if field == "issn":
+        return sum(
+            bool(re.fullmatch(r"\s*\d{4}[- ]?\d{3}[\dXx]\s*", value))
+            for value in sample
+        ) / total
+    if field == "isbn":
+        return sum(
+            len(re.sub(r"[-\s]", "", value)) in {10, 13}
+            and bool(re.fullmatch(r"[\dXx\-\s]+", value))
+            for value in sample
+        ) / total
     return 0.0
 
 
@@ -280,40 +351,45 @@ def infer_mapping(table: SourceTable) -> dict[str, dict[str, Any]]:
         )
         ranked[field] = candidates
 
-    shortlists: dict[str, list[str | None]] = {}
-    score_lookup: dict[tuple[str, str | None], float] = {}
-    for field, candidates in ranked.items():
-        # Four candidates per field keeps the globally unique assignment fast
-        # now that publication type is a seventh optional canonical field.
-        selected = [item["column"] for item in candidates[:4]]
-        shortlists[field] = [None, *selected]
-        score_lookup[(field, None)] = 0.12
-        for item in candidates:
-            score_lookup[(field, item["column"])] = item["score"]
-
-    best_assignment: dict[str, str | None] = {
-        field: None for field in CANONICAL_FIELDS
-    }
-    best_total = -1.0
-    for choices in itertools.product(
-        *(shortlists[field] for field in CANONICAL_FIELDS)
-    ):
-        used = [choice for choice in choices if choice is not None]
-        if len(used) != len(set(used)):
-            continue
-        total = sum(
-            score_lookup[(field, choice)]
-            for field, choice in zip(CANONICAL_FIELDS, choices)
+    # A deterministic greedy assignment scales safely as canonical metadata is
+    # expanded. High-confidence header matches claim a column first; weaker
+    # content-only suggestions are then assigned from the remaining columns.
+    best_assignment: dict[str, str | None] = {field: None for field in CANONICAL_FIELDS}
+    available = set(table.columns)
+    proposals = sorted(
+        (
+            candidate["score"],
+            candidate["header_score"],
+            field,
+            candidate["column"],
         )
-        if total > best_total:
-            best_total = total
-            best_assignment = dict(zip(CANONICAL_FIELDS, choices))
+        for field, candidates in ranked.items()
+        for candidate in candidates[:4]
+        if candidate["score"] >= 0.38
+    )
+    for score, header_score, field, column in reversed(proposals):
+        if best_assignment[field] is not None or column not in available:
+            continue
+        best_assignment[field] = column
+        available.remove(column)
+
+    # A complete-author column is also a valid source for the derived first
+    # author. This is the one intentional shared mapping in the review form.
+    if best_assignment["authors"] and best_assignment["first_author"] is None:
+        best_assignment["first_author"] = best_assignment["authors"]
+
+    score_lookup: dict[tuple[str, str | None], float] = {
+        (field, None): 0.0 for field in CANONICAL_FIELDS
+    }
+    for field, candidates in ranked.items():
+        for candidate in candidates:
+            score_lookup[(field, candidate["column"])] = candidate["score"]
 
     result: dict[str, dict[str, Any]] = {}
     for field in CANONICAL_FIELDS:
         selected = best_assignment[field]
         candidates = ranked[field]
-        selected_score = score_lookup[(field, selected)]
+        selected_score = score_lookup.get((field, selected), 0.0)
         alternatives = [
             candidate["score"]
             for candidate in candidates

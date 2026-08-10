@@ -32,9 +32,10 @@ from werkzeug.exceptions import NotFound
 from werkzeug.utils import secure_filename
 
 from .dedup import (
+    analyze_duplicates,
     apply_group_selections,
     conference_abstract_report,
-    find_duplicate_groups,
+    enrich_retained_records,
 )
 from .mapping import column_profiles, infer_mapping
 from .models import CANONICAL_FIELDS, SourceTable
@@ -56,10 +57,17 @@ EXPORT_FIELDS = [
     "title",
     "year",
     "first_author",
+    "authors",
     "doi",
     "journal",
+    "pages",
+    "article_number",
+    "issn",
+    "isbn",
     "publication_type",
     "abstract",
+    "source_provenance_json",
+    "enrichment_audit_json",
     "parse_warnings",
     "raw_fields_json",
 ]
@@ -196,8 +204,13 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
                 "title": "Article title",
                 "year": "Publication year",
                 "first_author": "First author / authors",
+                "authors": "Complete author list",
                 "doi": "DOI",
                 "journal": "Journal name",
+                "pages": "Pages / page range",
+                "article_number": "Article or e-location number",
+                "issn": "ISSN",
+                "isbn": "ISBN",
                 "abstract": "Abstract",
                 "publication_type": "Publication / document type",
             },
@@ -243,11 +256,19 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
                 if selected and selected not in table.columns:
                     abort(400)
                 table_mapping[field] = selected or None
-            chosen = [value for value in table_mapping.values() if value]
-            if len(chosen) != len(set(chosen)):
+            chosen_by_column: dict[str, list[str]] = defaultdict(list)
+            for field, column in table_mapping.items():
+                if column:
+                    chosen_by_column[column].append(field)
+            invalid_reuse = any(
+                len(fields) > 1 and set(fields) != {"first_author", "authors"}
+                for fields in chosen_by_column.values()
+            )
+            if invalid_reuse:
                 flash(
                     f"Each mapped field in {table.filename} must use a different "
-                    "source column.",
+                    "source column, except that the complete-author column may "
+                    "also supply the first author.",
                     "error",
                 )
                 return redirect(url_for("mapping_review", job_id=job_id))
@@ -261,6 +282,7 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
         records = store.load_json(job_id, "master", [])
         reports = store.load_json(job_id, "reports", [])
         groups = store.load_json(job_id, "groups", [])
+        review_candidates = store.load_json(job_id, "review_candidates", [])
         conference_report = store.load_json(
             job_id, "conference_abstract_report", {}
         )
@@ -280,6 +302,7 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
             records=records,
             reports=reports,
             groups=groups,
+            review_candidates=review_candidates,
             conference_report=conference_report,
             by_id=by_id,
             deduplicated=deduplicated,
@@ -307,20 +330,24 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
         except ValueError as exc:
             flash(str(exc), "error")
             return redirect(url_for("results", job_id=job_id))
-        store.save_json(job_id, "deduplicated", kept)
+        enriched, enrichment_audit = enrich_retained_records(
+            kept, records, groups, final_selections
+        )
+        store.save_json(job_id, "deduplicated", enriched)
         store.save_json(
             job_id,
             "deduplication_report",
             {
                 "input_records": len(records),
-                "output_records": len(kept),
+                "output_records": len(enriched),
                 "removed_records": len(removed),
                 "selections": final_selections,
+                "enrichment": enrichment_audit,
             },
         )
         flash(
             f"Deduplication complete: {len(removed)} record(s) removed and "
-            f"{len(kept)} retained.",
+            f"{len(enriched)} retained.",
             "success",
         )
         return redirect(
@@ -378,6 +405,7 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
         payload = {
             "reports": store.load_json(job_id, "reports", []),
             "duplicate_groups": store.load_json(job_id, "groups", []),
+            "review_candidates": store.load_json(job_id, "review_candidates", []),
             "conference_abstract_report": store.load_json(
                 job_id, "conference_abstract_report", {}
             ),
@@ -508,7 +536,7 @@ def _finalize_master(
             for warning in table.warnings
         )
 
-    groups = find_duplicate_groups(records)
+    groups, review_candidates = analyze_duplicates(records)
     conference_report = conference_abstract_report(records, groups)
     warning_counts: dict[str, int] = defaultdict(int)
     for record in records:
@@ -522,6 +550,7 @@ def _finalize_master(
     store.save_json(job_id, "master", records)
     store.save_json(job_id, "reports", list(report_data.values()))
     store.save_json(job_id, "groups", groups)
+    store.save_json(job_id, "review_candidates", review_candidates)
     store.save_json(job_id, "conference_abstract_report", conference_report)
 
 
@@ -536,6 +565,12 @@ def _records_to_csv(records: list[dict[str, Any]]) -> str:
 
 def _record_to_export_row(record: dict[str, Any]) -> dict[str, Any]:
     row = {field: record.get(field, "") for field in EXPORT_FIELDS}
+    row["source_provenance_json"] = json.dumps(
+        record.get("source_provenance", []), ensure_ascii=False, separators=(",", ":")
+    )
+    row["enrichment_audit_json"] = json.dumps(
+        record.get("enrichment_audit", []), ensure_ascii=False, separators=(",", ":")
+    )
     row["parse_warnings"] = " | ".join(record.get("parse_warnings", []))
     row["raw_fields_json"] = json.dumps(
         record.get("raw_fields", {}), ensure_ascii=False, separators=(",", ":")
@@ -572,26 +607,42 @@ def _records_to_xlsx(records: list[dict[str, Any]]) -> io.BytesIO:
             cell.data_type = "s"
             cell.alignment = Alignment(
                 vertical="top",
-                wrap_text=field in {"title", "abstract", "raw_fields_json"},
+                wrap_text=field in {
+                    "title",
+                    "authors",
+                    "abstract",
+                    "source_provenance_json",
+                    "enrichment_audit_json",
+                    "raw_fields_json",
+                },
             )
 
-    widths = {
-        "A": 34,
-        "B": 28,
-        "C": 18,
-        "D": 12,
-        "E": 55,
-        "F": 11,
-        "G": 22,
-        "H": 30,
-        "I": 34,
-        "J": 30,
-        "K": 85,
-        "L": 34,
-        "M": 85,
+    field_widths = {
+        "record_id": 34,
+        "source_filename": 28,
+        "source_sheet": 18,
+        "source_row": 12,
+        "title": 55,
+        "year": 11,
+        "first_author": 22,
+        "authors": 50,
+        "doi": 34,
+        "journal": 30,
+        "pages": 16,
+        "article_number": 20,
+        "issn": 16,
+        "isbn": 18,
+        "publication_type": 28,
+        "abstract": 85,
+        "source_provenance_json": 70,
+        "enrichment_audit_json": 70,
+        "parse_warnings": 34,
+        "raw_fields_json": 85,
     }
-    for column, width in widths.items():
-        sheet.column_dimensions[column].width = width
+    for index, field in enumerate(EXPORT_FIELDS, start=1):
+        sheet.column_dimensions[get_column_letter(index)].width = field_widths.get(
+            field, 24
+        )
 
     output = io.BytesIO()
     workbook.save(output)
@@ -610,9 +661,16 @@ def _records_to_ris(records: list[dict[str, Any]]) -> str:
             output.extend(_ris_field("AU", author))
         output.extend(_ris_field("PY", record.get("year", "")))
         output.extend(_ris_field("JO", record.get("journal", "")))
+        start_page, end_page = _split_page_range(record.get("pages", ""))
+        output.extend(_ris_field("SP", start_page))
+        output.extend(_ris_field("EP", end_page))
+        output.extend(_ris_field("C7", record.get("article_number", "")))
+        output.extend(_ris_field("SN", record.get("issn", "")))
+        output.extend(_ris_field("SN", record.get("isbn", "")))
         output.extend(_ris_field("DO", record.get("doi", "")))
         output.extend(_ris_field("PT", record.get("publication_type", "")))
         output.extend(_ris_field("AB", record.get("abstract", "")))
+        output.extend(_ris_field("N1", _provenance_note(record)))
         output.append("ER  -")
         output.append("")
     return "\r\n".join(output)
@@ -633,6 +691,15 @@ def _first_raw_value(raw_fields: Any, tags: tuple[str, ...]) -> str:
 
 
 def _ris_authors(record: dict[str, Any]) -> list[str]:
+    canonical = str(record.get("authors", "")).strip()
+    if canonical:
+        authors = [
+            item.strip()
+            for item in re.split(r"\s*;\s*|\s*\|\s*|\s+and\s+", canonical)
+            if item.strip()
+        ]
+        if len(authors) > 1:
+            return authors
     raw_fields = record.get("raw_fields", {})
     if isinstance(raw_fields, dict):
         for tag in ("AU", "A1"):
@@ -650,6 +717,30 @@ def _ris_authors(record: dict[str, Any]) -> list[str]:
             return [author for author in authors if author]
     first_author = str(record.get("first_author", "")).strip()
     return [first_author] if first_author else []
+
+
+def _split_page_range(value: Any) -> tuple[str, str]:
+    text = str(value or "").strip()
+    parts = re.split(r"\s*[-–—]\s*", text, maxsplit=1)
+    return (parts[0], parts[1]) if len(parts) == 2 else (text, "")
+
+
+def _provenance_note(record: dict[str, Any]) -> str:
+    provenance = record.get("source_provenance", [])
+    if not isinstance(provenance, list) or not provenance:
+        return ""
+    sources = []
+    for item in provenance:
+        if not isinstance(item, dict):
+            continue
+        source = str(item.get("source_filename", ""))
+        if item.get("source_sheet"):
+            source += f"/{item['source_sheet']}"
+        if item.get("source_row") not in (None, ""):
+            source += f" row {item['source_row']}"
+        if source:
+            sources.append(source)
+    return "Dedupper merged sources: " + "; ".join(sources) if sources else ""
 
 
 def _ris_field(tag: str, value: Any) -> list[str]:

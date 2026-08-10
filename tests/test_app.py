@@ -156,6 +156,59 @@ def test_ris_only_upload_skips_mapping_step(tmp_path: Path) -> None:
     assert b"Source-by-source record counts" in response.data
 
 
+def test_conference_abstract_safeguard_stats_are_shown_and_audited(
+    tmp_path: Path,
+) -> None:
+    app = create_app(
+        {
+            "TESTING": True,
+            "SECRET_KEY": "test",
+            "JOB_ROOT": str(tmp_path / "jobs"),
+        }
+    )
+    client = app.test_client()
+    doi = b"10.1038/s41433-025-03831-0"
+    payload = b"".join(
+        (
+            b"TY  - JOUR\n"
+            + f"TI  - Distinct conference finding number {index}\n".encode()
+            + f"AU  - Author{index}, A\n".encode()
+            + b"PT  - Conference Abstract\nDO  - "
+            + doi
+            + b"\nER  -\n"
+        )
+        for index in range(1, 4)
+    )
+
+    response = client.post(
+        "/upload",
+        data={"file_count": "1", "files": (io.BytesIO(payload), "abstracts.ris")},
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    assert b"Conference abstract safeguard" in response.data
+    assert b"3 conference abstract record(s) were detected" in response.data
+    assert b"1 same-source shared-DOI" in response.data
+    assert b"No corroborated duplicate groups were found" in response.data
+
+    with client.session_transaction() as flask_session:
+        job_id = flask_session["job_id"]
+    report = app.extensions["job_store"].load_json(
+        job_id, "conference_abstract_report"
+    )
+    assert report["protected_records"] == 3
+    assert report["overlapping_dois"] == 1
+
+    audit = client.get(f"/jobs/{job_id}/audit")
+    assert audit.status_code == 200
+    assert b'"conference_abstract_report"' in audit.data
+
+    ris_export = client.get(f"/jobs/{job_id}/export/master?format=ris")
+    assert ris_export.data.count(b"PT  - Conference Abstract") == 3
+
+
 def test_pubmed_txt_upload_and_csv_xlsx_ris_exports_keep_abstract(
     tmp_path: Path,
 ) -> None:
@@ -178,6 +231,8 @@ Author information:
 
 This complete abstract must appear in every output format.
 
+Publication Types: Journal Article
+
 DOI: 10.1234/example
 PMID: 12345678 [Indexed for MEDLINE]
 """
@@ -198,6 +253,7 @@ PMID: 12345678 [Indexed for MEDLINE]
     csv_export = client.get(f"/jobs/{job_id}/export/master?format=csv")
     assert csv_export.status_code == 200
     assert b"This complete abstract must appear" in csv_export.data
+    assert b"Journal Article" in csv_export.data
     assert csv_export.headers["Content-Disposition"].endswith(
         '"dedupper_master_with_duplicates.csv"'
     )
@@ -207,18 +263,112 @@ PMID: 12345678 [Indexed for MEDLINE]
     workbook = load_workbook(io.BytesIO(xlsx_export.data), read_only=True)
     rows = list(workbook.active.iter_rows(values_only=True))
     abstract_column = rows[0].index("abstract")
+    publication_type_column = rows[0].index("publication_type")
     assert rows[1][abstract_column] == (
         "This complete abstract must appear in every output format."
     )
+    assert rows[1][publication_type_column] == "Journal Article"
 
     ris_export = client.get(f"/jobs/{job_id}/export/master?format=ris")
     assert ris_export.status_code == 200
     assert b"AB  - This complete abstract must appear" in ris_export.data
+    assert b"PT  - Journal Article" in ris_export.data
     roundtrip, diagnostics = parse_ris(ris_export.data, "file2", "roundtrip.ris")
     assert diagnostics["parsed_records"] == 1
     assert roundtrip[0].abstract == (
         "This complete abstract must appear in every output format."
     )
+    assert roundtrip[0].publication_type == "Journal Article"
+
+
+def test_doi_metadata_conflict_is_visible_and_excluded_from_automatic_groups(
+    tmp_path: Path,
+) -> None:
+    app = create_app(
+        {"TESTING": True, "SECRET_KEY": "test", "JOB_ROOT": str(tmp_path / "jobs")}
+    )
+    client = app.test_client()
+    payload = b"""TY  - JOUR
+TI  - Effects of treatment on childhood language
+AU  - Smith, John
+PY  - 2024
+DO  - 10.1000/reused
+ER  -
+TY  - JOUR
+TI  - Quantum signatures in distant stellar systems
+AU  - Jones, Anna
+PY  - 2024
+DO  - 10.1000/reused
+ER  -
+"""
+
+    response = client.post(
+        "/upload",
+        data={"file_count": "1", "files": (io.BytesIO(payload), "conflict.ris")},
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    assert b"DOI metadata conflict" in response.data
+    assert b"Kept separate" in response.data
+    assert b"No corroborated duplicate groups were found" in response.data
+    with client.session_transaction() as flask_session:
+        job_id = flask_session["job_id"]
+    audit = client.get(f"/jobs/{job_id}/audit")
+    assert b'"review_candidates"' in audit.data
+    assert b'"DOI metadata conflict"' in audit.data
+
+
+def test_automatic_output_is_enriched_and_provenance_is_exported(tmp_path: Path) -> None:
+    app = create_app(
+        {"TESTING": True, "SECRET_KEY": "test", "JOB_ROOT": str(tmp_path / "jobs")}
+    )
+    client = app.test_client()
+    payload = b"""TY  - JOUR
+TI  - A complete enrichment example
+AU  - Smith, John
+PY  - 2024
+ER  -
+TY  - JOUR
+TI  - A complete enrichment example.
+AU  - Smith, John
+AU  - Jones, Anna
+PY  - 2024
+SP  - 23
+EP  - 29
+SN  - 1234-5678
+AB  - This abstract comes from the duplicate record.
+ER  -
+"""
+    response = client.post(
+        "/upload",
+        data={"file_count": "1", "files": (io.BytesIO(payload), "enrich.ris")},
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    with client.session_transaction() as flask_session:
+        job_id = flask_session["job_id"]
+
+    response = client.post(
+        f"/jobs/{job_id}/deduplicate",
+        data={"mode": "automatic"},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert b"field-level audit" in response.data
+
+    csv_export = client.get(f"/jobs/{job_id}/export/deduplicated?format=csv")
+    assert b"This abstract comes from the duplicate record" in csv_export.data
+    assert b"source_provenance_json" in csv_export.data
+    assert b"enrichment_audit_json" in csv_export.data
+
+    ris_export = client.get(f"/jobs/{job_id}/export/deduplicated?format=ris")
+    assert b"SP  - 23" in ris_export.data
+    assert b"EP  - 29" in ris_export.data
+    assert b"SN  - 1234-5678" in ris_export.data
+    assert b"N1  - Dedupper merged sources:" in ris_export.data
 
 
 def test_manual_dedup_keeps_multiple_records_and_collapses_review(

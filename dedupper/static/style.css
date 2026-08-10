@@ -354,6 +354,10 @@ input:focus {
   margin-top: 3rem;
 }
 
+.summary-grid {
+  grid-template-columns: repeat(4, 1fr);
+}
+
 .feature-grid article {
   padding: 1.3rem 0;
   border-top: 4px solid var(--navy);
@@ -646,6 +650,60 @@ tbody th small {
   background: var(--surface);
 }
 
+.metric-card-alert {
+  border-top-color: var(--red);
+}
+
+.review-candidates {
+  margin: -1.5rem 0 3rem;
+}
+
+.review-candidates-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 2rem;
+  align-items: end;
+  margin-bottom: 1rem;
+}
+
+.review-candidates-heading > p {
+  max-width: 560px;
+  color: var(--muted);
+}
+
+.conflict-card {
+  border-left: 6px solid var(--red);
+}
+
+.conflict-reason {
+  color: #6f302d;
+}
+
+.conflict-records {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.conflict-records > div {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.9rem;
+  border: 1px solid #e8c4c1;
+  background: var(--red-soft);
+}
+
+.conflict-records span,
+.conflict-records small {
+  color: var(--muted);
+}
+
+.conflict-records code {
+  overflow-wrap: anywhere;
+  color: var(--red);
+}
+
 .metric-card span,
 .metric-card small {
   display: block;
@@ -720,6 +778,7 @@ tbody th small {
 .record-body,
 .record-topline,
 .record-meta,
+.record-identifiers,
 .record-doi,
 .record-source {
   display: block;
@@ -741,6 +800,12 @@ tbody th small {
 .record-meta {
   margin-top: 0.45rem;
   color: var(--muted);
+}
+
+.record-identifiers {
+  margin-top: 0.25rem;
+  color: var(--muted);
+  font-size: 0.78rem;
 }
 
 .record-doi {
@@ -779,6 +844,37 @@ tbody th small {
   margin: 0 0 0.4rem;
   color: var(--muted);
   font-size: 0.84rem;
+}
+
+.evidence-row {
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.evidence-row:last-child {
+  border-bottom: 0;
+}
+
+.evidence-row small {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--muted);
+}
+
+.evidence-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+}
+
+.evidence-chips span {
+  padding: 0.22rem 0.5rem;
+  border-radius: 999px;
+  color: var(--blue-dark);
+  background: var(--blue-soft);
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
 .empty-state {
@@ -934,12 +1030,14 @@ tbody th small {
 
   .page-heading,
   .duplicates-heading,
+  .review-candidates-heading,
   .completion-card {
     display: block;
   }
 
   .page-heading > p,
-  .duplicates-heading > p {
+  .duplicates-heading > p,
+  .review-candidates-heading > p {
     margin-top: 1rem;
   }
 
@@ -959,6 +1057,10 @@ tbody th small {
   .mapping-row {
     grid-template-columns: 1fr;
     gap: 0.7rem;
+  }
+
+  .conflict-records {
+    grid-template-columns: 1fr;
   }
 
   .field,

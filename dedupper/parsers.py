@@ -28,8 +28,12 @@ PUBMED_CITATION_YEAR_RE = re.compile(
     r"\.\s*(?:1[5-9]\d{2}|20\d{2}|21\d{2})(?:\b|;)"
 )
 PMID_RE = re.compile(r"(?im)^[ \t]*PMID:\s*(\d+)")
+ISSN_RE = re.compile(r"(?<!\d)(\d{4})[-\s]?(\d{3}[\dXx])(?!\d)")
+ISBN_RE = re.compile(
+    r"(?<!\d)(?:(97[89])[-\s]?)?\d[-\s\d]{7,15}[\dXx](?!\d)"
+)
 PUBMED_METADATA_HEADING_RE = re.compile(
-    r"^(?:doi|pmid|pmcid|publication types?|mesh terms?|substances?|"
+    r"^(?:doi|pmid|pmcid|issn|isbn|publication types?|mesh terms?|substances?|"
     r"grant support|conflict of interest statement|clinical trial registration|"
     r"associated data)\s*:",
     re.IGNORECASE,
@@ -227,13 +231,71 @@ def _first_author_last_name(author: str) -> str:
     return parts[-1]
 
 
+def _joined_authors(fields: dict[str, list[str]]) -> str:
+    for tag in ("AU", "A1", "A2", "ED"):
+        values = [
+            re.sub(r"\s+", " ", value).strip()
+            for value in fields.get(tag, [])
+            if value.strip()
+        ]
+        if values:
+            return "; ".join(values)
+    return ""
+
+
+def _extract_pages(value: str) -> str:
+    value = re.sub(r"\s+", " ", value or "").strip(" .;,")
+    if not value:
+        return ""
+    match = re.search(
+        r"(?<!\w)(?:pp?\.?\s*)?"
+        r"(?P<pages>[A-Za-z]?\d+[A-Za-z]?(?:\s*[-–—]\s*[A-Za-z]?\d+[A-Za-z]?)?)"
+        r"(?:\s*;\s*discussion\s+[A-Za-z]?\d+(?:\s*[-–—]\s*\d+)?)?",
+        value,
+        re.IGNORECASE,
+    )
+    if not match:
+        return ""
+    return re.sub(r"\s*[-–—]\s*", "-", match.group("pages"))
+
+
+def _extract_identifiers(value: str) -> tuple[str, str]:
+    text = value or ""
+    issn_match = ISSN_RE.search(text)
+    issn = (
+        f"{issn_match.group(1)}-{issn_match.group(2).upper()}"
+        if issn_match
+        else ""
+    )
+    isbn = ""
+    for match in ISBN_RE.finditer(text):
+        compact = re.sub(r"[-\s]", "", match.group(0)).upper()
+        if len(compact) in {10, 13} and (not issn or compact != issn.replace("-", "")):
+            isbn = compact
+            break
+    return issn, isbn
+
+
+def _ris_pages(fields: dict[str, list[str]]) -> str:
+    start = _first_value(fields, ("SP",))
+    end = _first_value(fields, ("EP",))
+    if start and end:
+        return f"{start.strip()}-{end.strip()}"
+    return start or _first_value(fields, ("PG", "SE"))
+
+
 def _ris_to_record(
     fields: dict[str, list[str]], file_id: str, filename: str, row_number: int
 ) -> ArticleRecord:
     title = _first_value(fields, ("TI", "T1", "CT", "BT"))
     year_source = _first_value(fields, ("PY", "Y1", "DA"))
+    authors = _joined_authors(fields)
     author = _first_value(fields, ("AU", "A1", "A2", "ED"))
     journal = _first_value(fields, ("JO", "JF", "T2", "JA"))
+    pages = _ris_pages(fields)
+    article_number = _first_value(fields, ("C7", "AR"))
+    serial_number = _joined_values(fields, ("SN",))
+    issn, isbn = _extract_identifiers(serial_number)
     abstract = _joined_values(fields, ("AB", "N2"))
     publication_type = _joined_values(fields, ("PT", "DT", "M3"))
     doi = _extract_doi(_first_value(fields, ("DO", "L3", "UR")))
@@ -259,8 +321,13 @@ def _ris_to_record(
         title=title,
         year=_extract_year(year_source),
         first_author=_first_author_last_name(author),
+        authors=authors,
         doi=doi,
         journal=journal,
+        pages=pages,
+        article_number=article_number,
+        issn=issn,
+        isbn=isbn,
         abstract=abstract,
         publication_type=publication_type,
         raw_fields={key: list(values) for key, values in fields.items()},
@@ -377,6 +444,21 @@ def _pubmed_first_author_last_name(authors: str) -> str:
     return " ".join(tokens).strip() or first
 
 
+def _pubmed_pages_and_article_number(citation: str) -> tuple[str, str]:
+    page_match = re.search(
+        r"(?:\)|\d)\s*:\s*([^.;]+)(?:[.;]|$)", citation or ""
+    )
+    if not page_match:
+        return "", ""
+    value = page_match.group(1).strip()
+    pages = _extract_pages(value)
+    article_number = ""
+    if not pages:
+        match = re.search(r"\b(e\d{3,}|[A-Za-z]\d{5,})\b", value, re.IGNORECASE)
+        article_number = match.group(1) if match else ""
+    return pages, article_number
+
+
 def _looks_like_affiliation(value: str) -> bool:
     normalized = value.casefold()
     return bool(
@@ -400,6 +482,8 @@ def _is_pubmed_tail_metadata(value: str) -> bool:
         "doi:",
         "pmid:",
         "pmcid:",
+        "issn:",
+        "isbn:",
         "publication types:",
         "mesh terms:",
         "substances:",
@@ -507,6 +591,16 @@ def _pubmed_block_to_record(
     if not publication_type:
         publication_type = _pubmed_metadata_value(paragraphs, "Publication Type")
     record_number = first_match.group("number")
+    pages, article_number = _pubmed_pages_and_article_number(citation)
+    serial_text = "; ".join(
+        value
+        for value in (
+            _pubmed_metadata_value(paragraphs, "ISSN"),
+            _pubmed_metadata_value(paragraphs, "ISBN"),
+        )
+        if value
+    )
+    issn, isbn = _extract_identifiers(serial_text)
 
     parse_warnings: list[str] = []
     if not title:
@@ -524,6 +618,10 @@ def _pubmed_block_to_record(
         "author_information": affiliations,
         "abstract": abstract,
         "publication_type": publication_type,
+        "pages": pages,
+        "article_number": article_number,
+        "issn": issn,
+        "isbn": isbn,
         "doi": doi,
         "pmid": pmid,
         "raw_text": block,
@@ -538,8 +636,13 @@ def _pubmed_block_to_record(
         title=title,
         year=year,
         first_author=_pubmed_first_author_last_name(authors),
+        authors=authors,
         doi=doi,
         journal=journal,
+        pages=pages,
+        article_number=article_number,
+        issn=issn,
+        isbn=isbn,
         abstract=abstract,
         publication_type=publication_type,
         raw_fields=raw_fields,
@@ -799,7 +902,10 @@ def table_to_records(
 
         year_value = mapped("year")
         doi_value = mapped("doi")
-        author_value = mapped("first_author")
+        authors_value = mapped("authors")
+        author_value = mapped("first_author") or authors_value
+        issn, _ = _extract_identifiers(mapped("issn"))
+        _, isbn = _extract_identifiers(mapped("isbn"))
         parse_warnings: list[str] = []
         if year_value and not _extract_year(year_value):
             parse_warnings.append(f"Year could not be normalized: {year_value!r}.")
@@ -816,8 +922,13 @@ def table_to_records(
                 title=mapped("title"),
                 year=_extract_year(year_value),
                 first_author=_first_author_last_name(author_value),
+                authors=authors_value or mapped("first_author"),
                 doi=_extract_doi(doi_value),
                 journal=mapped("journal"),
+                pages=mapped("pages"),
+                article_number=mapped("article_number"),
+                issn=issn,
+                isbn=isbn,
                 abstract=mapped("abstract"),
                 publication_type=mapped("publication_type"),
                 raw_fields=raw_fields,

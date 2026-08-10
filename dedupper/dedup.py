@@ -365,19 +365,331 @@ def _potential_protocol_record_ids(
     ]
 
 
+def _normalized_metadata(value: Any) -> str:
+    text = unicodedata.normalize("NFKD", str(value or "")).casefold()
+    text = "".join(char for char in text if not unicodedata.combining(char))
+    return re.sub(r"[^a-z0-9]+", "", text)
+
+
+def _title_score(left: dict[str, Any], right: dict[str, Any]) -> float:
+    left_title = normalize_title(str(left.get("title", "")))
+    right_title = normalize_title(str(right.get("title", "")))
+    if not left_title or not right_title:
+        return 0.0
+    plain = ratio(left_title, right_title)
+    token = token_set_ratio(left_title, right_title)
+    return max(plain, 0.55 * plain + 0.45 * token)
+
+
+def _year_distance(left: dict[str, Any], right: dict[str, Any]) -> int | None:
+    try:
+        left_year = int(str(left.get("year", "")))
+        right_year = int(str(right.get("year", "")))
+    except ValueError:
+        return None
+    return abs(left_year - right_year)
+
+
+def _author_entries(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    text = re.sub(r"\s+", " ", str(value or "")).strip(" .;")
+    if not text:
+        return []
+    if re.search(r";|\||\s+and\s+", text, re.IGNORECASE):
+        return [
+            item.strip(" .")
+            for item in re.split(r"\s*;\s*|\s*\|\s*|\s+and\s+", text, flags=re.I)
+            if item.strip(" .")
+        ]
+    comma_parts = [item.strip(" .") for item in text.split(",") if item.strip(" .")]
+    if len(comma_parts) > 1 and all(
+        len(part.split()) >= 2 and re.search(r"\b[A-Z]{1,8}(?:\(\d+\))?$", part)
+        for part in comma_parts
+    ):
+        return comma_parts
+    return [text]
+
+
+def _author_signature(value: str) -> tuple[str, str]:
+    value = re.sub(r"\(\d[\d,\- ]*\)", "", value or "").strip(" .")
+    if not value:
+        return "", ""
+    if "," in value:
+        surname, given = value.split(",", 1)
+        initials = "".join(re.findall(r"\b([A-Za-z])", given))
+        return _author_key(surname), initials.casefold()
+    tokens = value.split()
+    if len(tokens) == 1:
+        return _author_key(tokens[0]), ""
+    if re.fullmatch(r"(?:[A-Z]\.?){1,8}", tokens[-1]):
+        return _author_key(" ".join(tokens[:-1])), _author_key(tokens[-1])
+    if re.fullmatch(r"(?:[A-Z]\.?){1,8}", tokens[0]):
+        return _author_key(tokens[-1]), _author_key(tokens[0])
+    return _author_key(tokens[-1]), "".join(token[0].casefold() for token in tokens[:-1])
+
+
+def _full_authors_match(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    left_entries = _author_entries(left.get("authors", ""))
+    right_entries = _author_entries(right.get("authors", ""))
+    if len(left_entries) < 2 or len(right_entries) < 2:
+        return False
+    left_signatures = [_author_signature(value) for value in left_entries]
+    right_signatures = [_author_signature(value) for value in right_entries]
+    compared = min(len(left_signatures), len(right_signatures))
+    matches = 0
+    for (left_surname, left_initials), (right_surname, right_initials) in zip(
+        left_signatures, right_signatures
+    ):
+        initials_compatible = (
+            not left_initials
+            or not right_initials
+            or left_initials.startswith(right_initials)
+            or right_initials.startswith(left_initials)
+        )
+        matches += bool(left_surname and left_surname == right_surname and initials_compatible)
+    return compared > 0 and matches / compared >= 0.8
+
+
+def _same_value(left: dict[str, Any], right: dict[str, Any], field: str) -> bool:
+    if field == "pages":
+        left_value = _page_start_key(left.get(field, ""))
+        right_value = _page_start_key(right.get(field, ""))
+    else:
+        left_value = _normalized_metadata(left.get(field, ""))
+        right_value = _normalized_metadata(right.get(field, ""))
+    return bool(left_value and left_value == right_value)
+
+
+def _page_start_key(value: Any) -> str:
+    text = unicodedata.normalize("NFKC", str(value or "")).casefold()
+    match = re.search(r"(?<![a-z0-9])([a-z]?)[-\s]*(\d+[a-z]?)", text)
+    return "".join(match.groups()) if match else ""
+
+
+def _pair_evidence(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any]:
+    left_doi = normalize_doi(left.get("doi", ""))
+    right_doi = normalize_doi(right.get("doi", ""))
+    score = _title_score(left, right)
+    left_author = _author_key(str(left.get("first_author", "")))
+    right_author = _author_key(str(right.get("first_author", "")))
+    first_author_match = bool(left_author and left_author == right_author)
+    full_authors_match = _full_authors_match(left, right)
+    year_distance = _year_distance(left, right)
+    journal_match = _same_value(left, right, "journal")
+    publication_type_match = _same_value(left, right, "publication_type")
+    issn_match = _same_value(left, right, "issn")
+    isbn_match = _same_value(left, right, "isbn")
+    pages_match = _same_value(left, right, "pages")
+    article_number_match = _same_value(left, right, "article_number")
+    signals: list[str] = []
+    if left_doi and left_doi == right_doi:
+        signals.append("Same DOI")
+    if score:
+        signals.append(f"title {score:.0f}%")
+    if full_authors_match:
+        signals.append("full author list match")
+    elif first_author_match:
+        signals.append("first author match")
+    if year_distance == 0:
+        signals.append("same year")
+    elif year_distance == 1:
+        signals.append("year +1")
+    if issn_match:
+        signals.append("ISSN match")
+    elif journal_match:
+        signals.append("journal match")
+    if pages_match:
+        signals.append("pages match")
+    if article_number_match:
+        signals.append("article number match")
+    if isbn_match:
+        signals.append("ISBN match")
+    if publication_type_match:
+        signals.append("publication type match")
+    return {
+        "same_doi": bool(left_doi and left_doi == right_doi),
+        "different_doi": bool(left_doi and right_doi and left_doi != right_doi),
+        "doi": left_doi if left_doi == right_doi else "",
+        "title_score": score,
+        "first_author_match": first_author_match,
+        "full_authors_match": full_authors_match,
+        "year_distance": year_distance,
+        "journal_match": journal_match,
+        "publication_type_match": publication_type_match,
+        "issn_match": issn_match,
+        "isbn_match": isbn_match,
+        "pages_match": pages_match,
+        "article_number_match": article_number_match,
+        "signals": signals,
+    }
+
+
+def _evaluate_pair(
+    left: dict[str, Any],
+    right: dict[str, Any],
+    conference_context: dict[str, Any],
+    fuzzy_threshold: float,
+) -> dict[str, Any]:
+    evidence = _pair_evidence(left, right)
+    result = {**evidence, "decision": "none", "method": "", "reason": ""}
+    if evidence["different_doi"]:
+        return result
+    if publication_kind(str(left.get("title", ""))) != publication_kind(
+        str(right.get("title", ""))
+    ):
+        return result
+    if _conference_sensitive_pair(left, right, conference_context):
+        if _conference_records_match(left, right):
+            result.update(
+                decision="duplicate",
+                method="Conference abstract title + first author",
+                reason="The shared proceedings DOI is supported by a near-identical title and first author.",
+            )
+        return result
+
+    year_distance = evidence["year_distance"]
+    if year_distance is not None and year_distance > 1:
+        if evidence["same_doi"]:
+            result.update(
+                decision="review",
+                reason="The DOI is identical, but the publication years differ by more than one year.",
+            )
+        return result
+
+    left_isbn = _normalized_metadata(left.get("isbn", ""))
+    right_isbn = _normalized_metadata(right.get("isbn", ""))
+    if left_isbn and right_isbn and left_isbn != right_isbn:
+        return result
+
+    strong_support = any(
+        (
+            evidence["first_author_match"],
+            evidence["full_authors_match"],
+            evidence["issn_match"],
+            evidence["isbn_match"],
+            evidence["pages_match"],
+            evidence["article_number_match"],
+        )
+    )
+    moderate_support = sum(
+        bool(value)
+        for value in (
+            year_distance is not None and year_distance <= 1,
+            evidence["journal_match"],
+            evidence["publication_type_match"],
+        )
+    )
+    title_score = evidence["title_score"]
+
+    if evidence["same_doi"]:
+        left_author = _author_key(str(left.get("first_author", "")))
+        right_author = _author_key(str(right.get("first_author", "")))
+        clear_author_conflict = bool(
+            left_author and right_author and not evidence["first_author_match"]
+        )
+        if title_score and title_score < 55 and clear_author_conflict:
+            result.update(
+                decision="review",
+                reason="The DOI is identical, but both title and first-author metadata conflict.",
+            )
+            return result
+        both_titles_present = bool(
+            normalize_title(str(left.get("title", "")))
+            and normalize_title(str(right.get("title", "")))
+        )
+        clear_title_conflict = bool(
+            both_titles_present and title_score < 55
+        )
+        identifier_support = any(
+            (
+                evidence["pages_match"],
+                evidence["article_number_match"],
+            )
+        )
+        if (
+            title_score >= 88
+            or evidence["full_authors_match"]
+            or identifier_support
+            or (
+                evidence["first_author_match"]
+                and moderate_support >= 1
+                and not clear_title_conflict
+            )
+            or (title_score >= 75 and moderate_support >= 2)
+        ):
+            if not (clear_title_conflict and not (evidence["full_authors_match"] or identifier_support)):
+                result.update(
+                    decision="duplicate",
+                    method="Corroborated DOI",
+                    reason="The DOI is supported by compatible bibliographic metadata.",
+                )
+                return result
+        result.update(
+            decision="review",
+            reason="The DOI is identical, but there is not enough supporting metadata for automatic removal.",
+        )
+        return result
+
+    left_title = normalize_title(str(left.get("title", "")))
+    right_title = normalize_title(str(right.get("title", "")))
+    exact_title = bool(left_title and left_title == right_title)
+    if exact_title:
+        exact_title_support = sum(
+            bool(value)
+            for value in (
+                year_distance is not None and year_distance <= 1,
+                evidence["journal_match"],
+            )
+        )
+        if strong_support or exact_title_support >= 1:
+            if min(len(left_title), len(right_title)) >= 28 or strong_support or exact_title_support >= 2:
+                result.update(
+                    decision="duplicate",
+                    method="Corroborated exact title",
+                    reason="The cleaned title is identical and at least one independent field agrees.",
+                )
+                return result
+        result.update(
+            decision="review",
+            reason="The cleaned title is identical, but no independent metadata corroborates it.",
+        )
+        return result
+
+    if title_score < fuzzy_threshold:
+        return result
+    protocol_pair = _has_protocol_marker(str(left.get("title", ""))) != _has_protocol_marker(
+        str(right.get("title", ""))
+    )
+    fuzzy_supported = bool(
+        strong_support
+        or (year_distance is not None and year_distance <= 1 and evidence["journal_match"])
+        or (protocol_pair and (evidence["first_author_match"] or year_distance is not None))
+    )
+    if fuzzy_supported:
+        result.update(
+            decision="duplicate",
+            method="Corroborated fuzzy title",
+            reason="The title similarity is supported by compatible bibliographic metadata.",
+        )
+    return result
+
+
 class UnionFind:
     def __init__(self, records: list[dict[str, Any]]) -> None:
         ids = [record["record_id"] for record in records]
         self.parent = {item: item for item in ids}
         self.rank = {item: 0 for item in ids}
-        self.dois = {
-            record["record_id"]: {
-                doi
-                for doi in [normalize_doi(record.get("doi", ""))]
-                if doi
+        self.metadata: dict[str, dict[str, set[Any]]] = {}
+        for record in records:
+            record_id = record["record_id"]
+            year = str(record.get("year", ""))
+            self.metadata[record_id] = {
+                "dois": {value for value in (normalize_doi(record.get("doi", "")),) if value},
+                "years": {int(year)} if year.isdigit() else set(),
+                "kinds": {publication_kind(str(record.get("title", "")))},
+                "isbns": {value for value in (_normalized_metadata(record.get("isbn", "")),) if value},
             }
-            for record in records
-        }
 
     def find(self, item: str) -> str:
         root = item
@@ -389,6 +701,20 @@ class UnionFind:
             item = parent
         return root
 
+    def has_component_conflict(self, left: str, right: str) -> bool:
+        left_meta = self.metadata[self.find(left)]
+        right_meta = self.metadata[self.find(right)]
+        dois = left_meta["dois"] | right_meta["dois"]
+        years = left_meta["years"] | right_meta["years"]
+        kinds = left_meta["kinds"] | right_meta["kinds"]
+        isbns = left_meta["isbns"] | right_meta["isbns"]
+        return bool(
+            len(dois) > 1
+            or len(kinds) > 1
+            or len(isbns) > 1
+            or (years and max(years) - min(years) > 1)
+        )
+
     def union(self, left: str, right: str) -> None:
         left_root, right_root = self.find(left), self.find(right)
         if left_root == right_root:
@@ -396,159 +722,111 @@ class UnionFind:
         if self.rank[left_root] < self.rank[right_root]:
             left_root, right_root = right_root, left_root
         self.parent[right_root] = left_root
-        self.dois[left_root].update(self.dois[right_root])
-        del self.dois[right_root]
+        for field, values in self.metadata[right_root].items():
+            self.metadata[left_root][field].update(values)
+        del self.metadata[right_root]
         if self.rank[left_root] == self.rank[right_root]:
             self.rank[left_root] += 1
 
-    def has_doi_conflict(self, left: str, right: str) -> bool:
-        left_dois = self.dois[self.find(left)]
-        right_dois = self.dois[self.find(right)]
-        return bool(left_dois and right_dois and left_dois != right_dois)
+
+def _review_candidate(
+    left: dict[str, Any], right: dict[str, Any], evidence: dict[str, Any]
+) -> dict[str, Any]:
+    same_doi = evidence.get("same_doi", False)
+    return {
+        "candidate_id": uuid.uuid4().hex,
+        "record_ids": [left["record_id"], right["record_id"]],
+        "label": "DOI metadata conflict" if same_doi else "Uncorroborated title match",
+        "reason": evidence.get("reason", "The metadata needs manual review."),
+        "signals": evidence.get("signals", []),
+        "doi": evidence.get("doi", ""),
+    }
 
 
-def _add_exact_doi_edges(
-    records: list[dict[str, Any]],
-    union_find: UnionFind,
-    edges: list[dict[str, Any]],
-    conference_context: dict[str, Any],
-) -> None:
-    buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
+def analyze_duplicates(
+    records: list[dict[str, Any]], fuzzy_threshold: float = 92.0
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    if len(records) < 2:
+        return [], []
+    ids = [record["record_id"] for record in records]
+    by_id = {record["record_id"]: record for record in records}
+    union_find = UnionFind(records)
+    edges: list[dict[str, Any]] = []
+    reviews: list[dict[str, Any]] = []
+    conference_context = _conference_context(records)
+    seen_pairs: set[tuple[str, str]] = set()
+
+    def consider(left: dict[str, Any], right: dict[str, Any]) -> None:
+        pair = tuple(sorted((left["record_id"], right["record_id"])))
+        if pair in seen_pairs:
+            return
+        seen_pairs.add(pair)
+        evidence = _evaluate_pair(left, right, conference_context, fuzzy_threshold)
+        if evidence["decision"] == "review":
+            reviews.append(_review_candidate(left, right, evidence))
+            return
+        if evidence["decision"] != "duplicate":
+            return
+        if union_find.has_component_conflict(left["record_id"], right["record_id"]):
+            evidence["same_doi"] = bool(evidence.get("same_doi"))
+            evidence["reason"] = (
+                "This pair looks similar, but joining its existing groups would create "
+                "a DOI, year, publication-type or ISBN conflict."
+            )
+            reviews.append(_review_candidate(left, right, evidence))
+            return
+        union_find.union(left["record_id"], right["record_id"])
+        edges.append(
+            {
+                "left": left["record_id"],
+                "right": right["record_id"],
+                "method": evidence["method"],
+                "value": evidence.get("doi", ""),
+                "score": round(evidence["title_score"], 1),
+                "signals": evidence["signals"],
+                "reason": evidence["reason"],
+            }
+        )
+
+    doi_buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for record in records:
-        key = normalize_doi(record.get("doi", ""))
-        if key:
-            buckets[key].append(record)
-
-    for doi, bucket in buckets.items():
+        doi = normalize_doi(record.get("doi", ""))
+        if doi:
+            doi_buckets[doi].append(record)
+    for doi, bucket in doi_buckets.items():
         if len(bucket) < 2:
             continue
-        is_shared_conference_doi = bool(
+        conference_sensitive = bool(
             doi in conference_context["shared_conference_dois"]
-            or any(
-                record["record_id"] in conference_context["conference_ids"]
-                for record in bucket
-            )
+            or any(item["record_id"] in conference_context["conference_ids"] for item in bucket)
         )
-        if is_shared_conference_doi:
-            author_buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
-            for record in bucket:
-                author_key = _author_key(record.get("first_author", ""))
-                if len(author_key) >= 2:
-                    author_buckets[author_key].append(record)
-            pairs = (
-                (author_bucket[left_index], author_bucket[right_index])
-                for author_bucket in author_buckets.values()
-                for left_index in range(len(author_bucket))
-                for right_index in range(left_index + 1, len(author_bucket))
-            )
-        else:
-            pairs = ((bucket[0], current) for current in bucket[1:])
+        for left_index, left in enumerate(bucket):
+            for right in bucket[left_index + 1 :]:
+                if conference_sensitive and not _conference_records_match(left, right):
+                    continue
+                consider(left, right)
 
-        for left, right in pairs:
-            if is_shared_conference_doi and not _conference_records_match(
-                left, right
-            ):
-                continue
-            union_find.union(left["record_id"], right["record_id"])
-            edges.append(
-                {
-                    "left": left["record_id"],
-                    "right": right["record_id"],
-                    "method": (
-                        "Conference abstract title + first author"
-                        if is_shared_conference_doi
-                        else "Exact DOI"
-                    ),
-                    "value": doi,
-                    "score": 100.0,
-                }
-            )
-
-
-def _title_evidence_is_compatible(
-    left: dict[str, Any],
-    right: dict[str, Any],
-    conference_context: dict[str, Any],
-) -> bool:
-    left_doi = normalize_doi(left.get("doi", ""))
-    right_doi = normalize_doi(right.get("doi", ""))
-    if left_doi and right_doi and left_doi != right_doi:
-        return False
-    if _conference_sensitive_pair(left, right, conference_context):
-        return _conference_records_match(left, right)
-    return publication_kind(left.get("title", "")) == publication_kind(
-        right.get("title", "")
-    )
-
-
-def _add_exact_title_edges(
-    records: list[dict[str, Any]],
-    union_find: UnionFind,
-    edges: list[dict[str, Any]],
-    conference_context: dict[str, Any],
-) -> None:
-    buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    title_buckets: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for record in records:
-        key = normalize_title(record.get("title", ""))
-        if key:
-            buckets[key].append(record)
-
-    for key, bucket in buckets.items():
-        # If the same title is already associated with multiple known DOIs,
-        # title-only records cannot safely be assigned to either publication.
+        title = normalize_title(str(record.get("title", "")))
+        if title:
+            title_buckets[title].append(record)
+    for bucket in title_buckets.values():
         known_dois = {
             normalize_doi(record.get("doi", ""))
             for record in bucket
             if normalize_doi(record.get("doi", ""))
         }
+        # A DOI-less copy cannot be assigned safely when this exact title is
+        # already attached to more than one known publication.
         if len(known_dois) > 1:
             continue
         for left_index, left in enumerate(bucket):
-            for current in bucket[left_index + 1 :]:
-                if not _title_evidence_is_compatible(
-                    left, current, conference_context
-                ):
-                    continue
-                if union_find.has_doi_conflict(
-                    left["record_id"], current["record_id"]
-                ):
-                    continue
-                union_find.union(left["record_id"], current["record_id"])
-                edges.append(
-                    {
-                        "left": left["record_id"],
-                        "right": current["record_id"],
-                        "method": (
-                            "Conference abstract title + first author"
-                            if _conference_sensitive_pair(
-                                left, current, conference_context
-                            )
-                            else "Exact cleaned title"
-                        ),
-                        "value": key,
-                        "score": 100.0,
-                    }
-                )
-
-
-def find_duplicate_groups(
-    records: list[dict[str, Any]], fuzzy_threshold: float = 92.0
-) -> list[dict[str, Any]]:
-    if len(records) < 2:
-        return []
-    ids = [record["record_id"] for record in records]
-    by_id = {record["record_id"]: record for record in records}
-    union_find = UnionFind(records)
-    edges: list[dict[str, Any]] = []
-    conference_context = _conference_context(records)
-
-    _add_exact_doi_edges(records, union_find, edges, conference_context)
-    _add_exact_title_edges(
-        records, union_find, edges, conference_context
-    )
+            for right in bucket[left_index + 1 :]:
+                consider(left, right)
 
     title_by_id = {
-        record["record_id"]: normalize_title(record.get("title", ""))
+        record["record_id"]: normalize_title(str(record.get("title", "")))
         for record in records
     }
     token_sets = {
@@ -559,15 +837,11 @@ def find_duplicate_groups(
         }
         for record_id, title in title_by_id.items()
     }
-    document_frequency = Counter(
-        token for tokens in token_sets.values() for token in tokens
-    )
+    document_frequency = Counter(token for tokens in token_sets.values() for token in tokens)
     token_index: dict[str, list[str]] = defaultdict(list)
     for record_id, tokens in token_sets.items():
         for token in tokens:
             token_index[token].append(record_id)
-
-    seen_pairs: set[tuple[str, str]] = set()
     maximum_block_size = max(40, int(len(records) * 0.12))
     for record in records:
         record_id = record["record_id"]
@@ -575,106 +849,48 @@ def find_duplicate_groups(
         if len(title) < 12:
             continue
         rare_tokens = sorted(
-            (
-                token
-                for token in token_sets[record_id]
-                if document_frequency[token] <= maximum_block_size
-            ),
+            (token for token in token_sets[record_id] if document_frequency[token] <= maximum_block_size),
             key=lambda token: (document_frequency[token], token),
         )[:6]
-        candidates: set[str] = set()
-        for token in rare_tokens:
-            candidates.update(token_index[token])
+        candidates = {candidate for token in rare_tokens for candidate in token_index[token]}
         for other_id in candidates:
             if other_id == record_id:
                 continue
             pair = tuple(sorted((record_id, other_id)))
             if pair in seen_pairs:
                 continue
-            seen_pairs.add(pair)
-            other = by_id[other_id]
             other_title = title_by_id[other_id]
+            if not other_title:
+                continue
             if title == other_title:
                 continue
-            if not _title_evidence_is_compatible(
-                record, other, conference_context
-            ):
-                continue
-            year, other_year = record.get("year", ""), other.get("year", "")
-            if year and other_year and year != other_year:
-                continue
-            length_ratio = min(len(title), len(other_title)) / max(
-                len(title), len(other_title)
-            )
+            length_ratio = min(len(title), len(other_title)) / max(len(title), len(other_title))
             if length_ratio < 0.72:
                 continue
-            plain_score = ratio(title, other_title)
-            token_score = token_set_ratio(title, other_title)
-            score = max(plain_score, 0.55 * plain_score + 0.45 * token_score)
-            if score < fuzzy_threshold:
+            if _title_score(record, by_id[other_id]) < fuzzy_threshold:
                 continue
-            # Short, generic titles need one additional agreeing identifier.
-            if min(len(title), len(other_title)) < 28:
-                author_agrees = bool(
-                    _author_key(record.get("first_author", ""))
-                    and _author_key(record.get("first_author", ""))
-                    == _author_key(other.get("first_author", ""))
-                )
-                year_agrees = bool(year and other_year and year == other_year)
-                if not (author_agrees or year_agrees):
-                    continue
-            if union_find.has_doi_conflict(record_id, other_id):
-                continue
-            conference_match = _conference_sensitive_pair(
-                record, other, conference_context
-            )
-            union_find.union(record_id, other_id)
-            edges.append(
-                {
-                    "left": record_id,
-                    "right": other_id,
-                    "method": (
-                        "Conference abstract title + first author"
-                        if conference_match
-                        else "Fuzzy cleaned title"
-                    ),
-                    "value": "",
-                    "score": round(score, 1),
-                }
-            )
+            consider(record, by_id[other_id])
 
     components: dict[str, list[str]] = defaultdict(list)
     for record_id in ids:
         components[union_find.find(record_id)].append(record_id)
-
     groups: list[dict[str, Any]] = []
     for member_ids in components.values():
         if len(member_ids) < 2:
             continue
         member_set = set(member_ids)
         group_edges = [
-            edge
-            for edge in edges
-            if edge["left"] in member_set and edge["right"] in member_set
+            edge for edge in edges if edge["left"] in member_set and edge["right"] in member_set
         ]
         member_records = [by_id[item] for item in member_ids]
         conference_abstract_ids = [
-            record_id
-            for record_id in member_ids
-            if record_id in conference_context["conference_ids"]
+            record_id for record_id in member_ids if record_id in conference_context["conference_ids"]
         ]
-        potential_protocol_ids = _potential_protocol_record_ids(
-            member_records,
-            fuzzy_threshold,
-        )
+        potential_protocol_ids = _potential_protocol_record_ids(member_records, fuzzy_threshold)
         recommendation_candidates = [
-            record
-            for record in member_records
-            if record["record_id"] not in potential_protocol_ids
+            record for record in member_records if record["record_id"] not in potential_protocol_ids
         ]
-        recommendation = choose_best_record(
-            recommendation_candidates or member_records
-        )
+        recommendation = choose_best_record(recommendation_candidates or member_records)
         groups.append(
             {
                 "group_id": uuid.uuid4().hex,
@@ -689,10 +905,17 @@ def find_duplicate_groups(
     groups.sort(
         key=lambda group: (
             -len(group["record_ids"]),
-            normalize_title(by_id[group["record_ids"][0]].get("title", "")),
+            normalize_title(str(by_id[group["record_ids"][0]].get("title", ""))),
         )
     )
-    return groups
+    reviews.sort(key=lambda candidate: (candidate["label"], candidate["record_ids"]))
+    return groups, reviews
+
+
+def find_duplicate_groups(
+    records: list[dict[str, Any]], fuzzy_threshold: float = 92.0
+) -> list[dict[str, Any]]:
+    return analyze_duplicates(records, fuzzy_threshold)[0]
 
 
 def conference_abstract_report(
@@ -760,8 +983,13 @@ def record_information_score(record: dict[str, Any]) -> tuple[int, int, int, int
         record.get("title", ""),
         record.get("year", ""),
         record.get("first_author", ""),
+        record.get("authors", ""),
         record.get("doi", ""),
         record.get("journal", ""),
+        record.get("pages", ""),
+        record.get("article_number", ""),
+        record.get("issn", ""),
+        record.get("isbn", ""),
         record.get("abstract", ""),
         record.get("publication_type", ""),
     ]
@@ -821,3 +1049,153 @@ def apply_group_selections(
     kept = [record for record in records if record["record_id"] not in remove_ids]
     removed = [record for record in records if record["record_id"] in remove_ids]
     return kept, removed, final_selections
+
+
+ENRICHABLE_FIELDS = (
+    "title",
+    "year",
+    "first_author",
+    "authors",
+    "doi",
+    "journal",
+    "pages",
+    "article_number",
+    "issn",
+    "isbn",
+    "abstract",
+    "publication_type",
+)
+
+
+def _field_key(field: str, value: Any) -> str:
+    if field == "doi":
+        return normalize_doi(value)
+    if field == "title":
+        return normalize_title(str(value or ""))
+    if field == "pages":
+        return _page_start_key(value)
+    return _normalized_metadata(value)
+
+
+def _source_reference(record: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "record_id": record.get("record_id", ""),
+        "source_file_id": record.get("source_file_id", ""),
+        "source_filename": record.get("source_filename", ""),
+        "source_sheet": record.get("source_sheet"),
+        "source_row": record.get("source_row"),
+    }
+
+
+def enrich_retained_records(
+    kept: list[dict[str, Any]],
+    all_records: list[dict[str, Any]],
+    groups: list[dict[str, Any]],
+    selections: dict[str, list[str]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Fill safe gaps in retained records and return a field-level audit.
+
+    A populated field is not overwritten except for a clearly compatible,
+    longer title. Missing fields are filled only when duplicate members provide
+    one unambiguous normalized value. Disagreements remain visible in the audit.
+    """
+
+    by_id = {record["record_id"]: record for record in all_records}
+    group_by_selected: dict[str, dict[str, Any]] = {}
+    for group in groups:
+        for selected_id in selections.get(group["group_id"], []):
+            group_by_selected[selected_id] = group
+
+    enriched_records: list[dict[str, Any]] = []
+    audit_entries: list[dict[str, Any]] = []
+    for original in kept:
+        record = dict(original)
+        group = group_by_selected.get(record["record_id"])
+        if not group:
+            enriched_records.append(record)
+            continue
+        members = [by_id[record_id] for record_id in group["record_ids"]]
+        record["source_provenance"] = [_source_reference(member) for member in members]
+        protocol_ids = set(group.get("potential_protocol_record_ids", []))
+        if protocol_ids:
+            selected_is_protocol = record["record_id"] in protocol_ids
+            enrichment_members = [
+                member
+                for member in members
+                if (member["record_id"] in protocol_ids) == selected_is_protocol
+            ]
+        else:
+            enrichment_members = members
+        field_audit: list[dict[str, Any]] = []
+
+        for field in ENRICHABLE_FIELDS:
+            current = record.get(field, "")
+            candidates = [
+                (member, member.get(field, ""))
+                for member in enrichment_members
+                if member.get(field, "") not in (None, "")
+            ]
+            if not candidates:
+                continue
+            keys: dict[str, list[tuple[dict[str, Any], Any]]] = defaultdict(list)
+            for member, value in candidates:
+                key = _field_key(field, value)
+                if key:
+                    keys[key].append((member, value))
+
+            if field == "title" and current:
+                compatible = [
+                    (member, value)
+                    for member, value in candidates
+                    if _protocol_title_score(str(current), str(value)) >= 96
+                    and publication_kind(str(current)) == publication_kind(str(value))
+                ]
+                if compatible:
+                    source, longest = max(compatible, key=lambda item: len(str(item[1])))
+                    if len(str(longest)) > len(str(current)):
+                        record[field] = longest
+                        field_audit.append(
+                            {
+                                "field": field,
+                                "action": "used longer compatible title",
+                                "from_record_id": source["record_id"],
+                                "previous_value": current,
+                                "value": longest,
+                            }
+                        )
+                continue
+
+            if current:
+                continue
+            if len(keys) == 1:
+                source, value = max(next(iter(keys.values())), key=lambda item: len(str(item[1])))
+                record[field] = value
+                field_audit.append(
+                    {
+                        "field": field,
+                        "action": "filled missing field",
+                        "from_record_id": source["record_id"],
+                        "value": value,
+                    }
+                )
+            elif len(keys) > 1:
+                field_audit.append(
+                    {
+                        "field": field,
+                        "action": "left missing because duplicates disagree",
+                        "candidate_values": [
+                            values[0][1] for values in keys.values()
+                        ],
+                    }
+                )
+
+        record["enrichment_audit"] = field_audit
+        audit_entry = {
+            "retained_record_id": record["record_id"],
+            "group_id": group["group_id"],
+            "source_provenance": record["source_provenance"],
+            "fields": field_audit,
+        }
+        audit_entries.append(audit_entry)
+        enriched_records.append(record)
+    return enriched_records, audit_entries
