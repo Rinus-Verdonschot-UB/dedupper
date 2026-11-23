@@ -163,11 +163,17 @@ ER  -
     upload(client, payload, "review.ris")
     job_id = job_id_of(client)
     [review] = store.load_json(job_id, "review_candidates")
+    [cluster] = store.load_json(job_id, "review_clusters")
+    assert cluster["candidate_ids"] == [review["candidate_id"]]
     assert review["rule"] == "R2"
     keep = review["record_ids"][1]
     client.post(
         f"/jobs/{job_id}/deduplicate",
-        data={"mode": "automatic", f"review.{review['candidate_id']}": keep},
+        data={
+            "mode": "automatic",
+            f"reviewcluster.{cluster['cluster_id']}": "1",
+            f"reviewkeep.{cluster['cluster_id']}": keep,
+        },
     )
     kept = store.load_json(job_id, "deduplicated")
     assert [record["record_id"] for record in kept] == [keep]
@@ -303,3 +309,115 @@ def test_house_style_layout_and_self_hosted_font(tmp_path: Path) -> None:
     assert len(font.data) > 10_000
     css = client.get("/static/style.css").data.decode()
     assert "#001c3d" in css and "#d2460f" in css.casefold() and "Open Sans" in css
+
+
+THREE_WAY_DOI = b"""TY  - CHAP
+TI  - Randomized denoising autoencoders for smaller and efficient imaging based AD clinical trials
+AU  - Ithapu, V. K.
+AU  - Singh, V.
+AU  - Okonkwo, O.
+AU  - Johnson, S. C.
+PY  - 2014
+SP  - 470
+EP  - 478
+DO  - 10.1007/978-3-319-10470-6_59
+ER  -
+TY  - CHAP
+TI  - Randomized Denoising Autoencoders for Smaller and Efficient Imaging Based AD Clinical Trials
+AU  - Ithapu, Vamsi K.
+AU  - Singh, Vikas
+AU  - Okonkwo, Ozioma
+AU  - Johnson, Sterling C.
+PY  - 2022
+DO  - 10.1007/978-3-319-10470-6_59
+ER  -
+TY  - CHAP
+TI  - Randomized denoising autoencoders for smaller and efficient imaging based AD clinical trials
+AU  - Ithapu, V. K.
+AU  - Singh, V.
+AU  - Okonkwo, O.
+AU  - Johnson, S. C.
+PY  - 2014
+SP  - 470
+EP  - 478
+DO  - 10.1007/978-3-319-10470-6_59
+ER  -
+"""
+
+
+def test_three_records_sharing_a_doi_are_reviewed_together(tmp_path: Path) -> None:
+    app = make_app(tmp_path)
+    client = app.test_client()
+
+    response = upload(client, THREE_WAY_DOI, "chapters.ris")
+
+    job_id = job_id_of(client)
+    store = app.extensions["job_store"]
+    [group] = store.load_json(job_id, "groups")
+    assert len(group["record_ids"]) == 2
+    reviews = store.load_json(job_id, "review_candidates")
+    assert len(reviews) == 2  # pairwise checks are kept for transparency
+    [cluster] = store.load_json(job_id, "review_clusters")
+    assert len(cluster["record_ids"]) == 3
+    assert len(cluster["candidate_ids"]) == 2
+    master = {record["source_row"]: record["record_id"] for record in store.load_json(job_id, "master")}
+    first, odd, third = master[1], master[2], master[3]
+    assert cluster["identical_to"][first] == [third]
+    assert cluster["same_group_members"][first] == [third]
+    assert cluster["agreement"]["year"]["odd"] == [odd]
+
+    body = response.data.decode()
+    assert body.count('class="card conflict-card review-cluster"') == 1
+    assert "1 ambiguous match(es) kept separate" in body
+    assert "Identical to row 3" in body
+    assert "Duplicate of row 3" in body
+    assert "Pairwise checks behind this review (2)" in body
+
+    # Keep a chosen subset: drop only the odd 2022 record.
+    client.post(
+        f"/jobs/{job_id}/deduplicate",
+        data={
+            "mode": "automatic",
+            f"reviewcluster.{cluster['cluster_id']}": "1",
+            f"reviewkeep.{cluster['cluster_id']}": [first, third],
+        },
+    )
+    kept_ids = {record["record_id"] for record in store.load_json(job_id, "deduplicated")}
+    # The group keeps one of the two identical copies; the 2022 record is gone.
+    assert odd not in kept_ids
+    assert len(kept_ids) == 1
+    report = store.load_json(job_id, "deduplication_report")
+    assert report["removals"][odd]["via"] == "manual review"
+
+    # Keeping nothing is refused; leaving every box ticked keeps all.
+    response = client.post(
+        f"/jobs/{job_id}/deduplicate",
+        data={"mode": "automatic", f"reviewcluster.{cluster['cluster_id']}": "1"},
+        follow_redirects=True,
+    )
+    assert b"keep at least one record" in response.data
+    client.post(
+        f"/jobs/{job_id}/deduplicate",
+        data={
+            "mode": "manual",
+            f"keep.{group['group_id']}": group["record_ids"],
+            f"reviewcluster.{cluster['cluster_id']}": "1",
+            f"reviewkeep.{cluster['cluster_id']}": [first, odd, third],
+        },
+    )
+    assert len(store.load_json(job_id, "deduplicated")) == 3
+    assert store.load_json(job_id, "deduplication_report")["review_cluster_choices"] == {}
+
+
+def test_review_clusters_are_rebuilt_for_older_jobs(tmp_path: Path) -> None:
+    app = make_app(tmp_path)
+    client = app.test_client()
+    upload(client, THREE_WAY_DOI, "chapters.ris")
+    job_id = job_id_of(client)
+    store = app.extensions["job_store"]
+    store.job_dir(job_id).joinpath("review_clusters.json").unlink()
+
+    response = client.get(f"/jobs/{job_id}/results")
+
+    assert response.status_code == 200
+    assert len(store.load_json(job_id, "review_clusters")) == 1

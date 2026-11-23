@@ -96,9 +96,9 @@
       <strong>{{ related_families|length }}</strong>
       <small>Works found in several versions; all kept unless you decide otherwise</small>
     </article>
-    <article class="metric-card {% if review_candidates %}metric-card-alert{% endif %}">
+    <article class="metric-card {% if review_clusters %}metric-card-alert{% endif %}">
       <span>Needs manual review</span>
-      <strong>{{ review_candidates|length }}</strong>
+      <strong>{{ review_clusters|length }}</strong>
       <small>Excluded from automatic removal</small>
     </article>
   </section>
@@ -176,7 +176,7 @@
     </section>
   {% endif %}
 
-  {% set has_decisions = groups or review_candidates or related_families %}
+  {% set has_decisions = groups or review_clusters or related_families %}
   {% if has_decisions %}
     {% if deduplicated is not none %}
       <details class="review-toggle">
@@ -258,47 +258,112 @@
       </section>
     {% endif %}
 
-    {% if review_candidates %}
+    {% if review_clusters %}
       <section class="review-candidates" aria-labelledby="review-candidates-title">
         <div class="review-candidates-heading">
           <div>
             <p class="source-label">Safety review</p>
-            <h2 id="review-candidates-title">{{ review_candidates|length }} ambiguous match(es) kept separate.</h2>
+            <h2 id="review-candidates-title">{{ review_clusters|length }} ambiguous match(es) kept separate.</h2>
           </div>
           <p>
-            These records were not placed in an automatic duplicate group. An
-            identical DOI can be incorrect or reused, while an identical title
-            without supporting metadata is not enough for deletion. You can still
-            decide to keep only one of them.
+            These records were not removed automatically. An identical DOI can be
+            incorrect or reused, while an identical title without supporting
+            metadata is not enough for deletion. Records that were flagged together
+            are shown side by side; untick any record you want to remove.
           </p>
         </div>
-        {% for candidate in review_candidates %}
-          <article class="card conflict-card">
+        {% for cluster in review_clusters %}
+          {% set chosen = review_choices.get(cluster.cluster_id) %}
+          {% set cluster_number = loop.index %}
+          <article class="card conflict-card review-cluster">
             <div class="card-header">
               <div>
-                <p class="source-label">Manual review {{ loop.index }}</p>
-                <h3>{{ candidate.label }}</h3>
+                <p class="source-label">Manual review {{ loop.index }} · {{ cluster.record_ids|length }} records</p>
+                <h3>{{ cluster.labels|join(' · ') }}</h3>
               </div>
-              <span>{% if candidate.rule %}{{ m.rule_tag(rules, candidate.rule) }}{% endif %}<span class="status status-bad">Kept separate</span></span>
+              <span>{% for rule_id in cluster.rules %}{{ m.rule_tag(rules, rule_id) }}{% endfor %}<span class="status status-bad">Kept separate</span></span>
             </div>
-            <p class="conflict-reason">{{ candidate.reason }}</p>
-            {% if candidate.signals %}
-              <div class="evidence-chips" aria-label="Matching evidence">
-                {% for signal in candidate.signals %}<span>{{ signal }}</span>{% endfor %}
-              </div>
-            {% endif %}
-            <div class="conflict-records">
-              {% for record_id in candidate.record_ids %}
-                <div>{{ m.record_summary(by_id[record_id], versions) }}</div>
+            {% for reason in cluster.reasons %}<p class="conflict-reason">{{ reason }}</p>{% endfor %}
+
+            <input type="hidden" name="reviewcluster.{{ cluster.cluster_id }}" value="1">
+            <div class="table-scroll">
+              <table class="cluster-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Field</th>
+                    {% for record_id in cluster.record_ids %}
+                      {% set record = by_id[record_id] %}
+                      <th scope="col">
+                        {{ record.source_filename }}{% if record.source_sheet %} / {{ record.source_sheet }}{% endif %}
+                        <span class="cluster-row">row {{ record.source_row }}</span>
+                      </th>
+                    {% endfor %}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="cluster-keep">
+                    <th scope="row">Keep</th>
+                    {% for record_id in cluster.record_ids %}
+                      {% set record = by_id[record_id] %}
+                      <td>
+                        <label class="keep-choice">
+                          <input type="checkbox" name="reviewkeep.{{ cluster.cluster_id }}" value="{{ record_id }}"
+                                 {% if chosen is none or record_id in chosen %}checked{% endif %}>
+                          Keep row {{ record.source_row }}
+                        </label>
+                        {% if cluster.same_group_members.get(record_id) %}
+                          <span class="cluster-flag flag-duplicate">Duplicate of row{% if cluster.same_group_members[record_id]|length > 1 %}s{% endif %} {% for other in cluster.same_group_members[record_id] %}{{ by_id[other].source_row }}{% if not loop.last %}, {% endif %}{% endfor %} (duplicate group {{ cluster.duplicate_group[record_id] }})</span>
+                        {% elif cluster.duplicate_group.get(record_id) %}
+                          <span class="cluster-flag flag-duplicate">In duplicate group {{ cluster.duplicate_group[record_id] }}</span>
+                        {% endif %}
+                        {% if cluster.identical_to.get(record_id) %}
+                          <span class="cluster-flag flag-identical">Identical to row{% if cluster.identical_to[record_id]|length > 1 %}s{% endif %} {% for other in cluster.identical_to[record_id] %}{{ by_id[other].source_row }}{% if not loop.last %}, {% endif %}{% endfor %} on every compared field</span>
+                        {% endif %}
+                        {{ m.version_badge(versions, record_id) }}
+                      </td>
+                    {% endfor %}
+                  </tr>
+                  {% for field in ['title', 'authors', 'first_author', 'year', 'doi', 'journal', 'pages', 'article_number', 'issn', 'isbn', 'publication_type'] %}
+                    {% set agreement = cluster.agreement.get(field, {}) %}
+                    {% if agreement and agreement.status != 'absent' %}
+                      <tr class="agree-{{ agreement.status }}">
+                        <th scope="row">
+                          {{ field_labels.get(field, field) }}
+                          <small>{% if agreement.status == 'agree' %}all agree{% else %}differs{% endif %}{% if agreement.missing %} · {{ agreement.missing }} missing{% endif %}</small>
+                        </th>
+                        {% for record_id in cluster.record_ids %}
+                          {% set value = by_id[record_id].get(field, '') %}
+                          <td class="{% if record_id in agreement.odd %}cell-odd{% elif not value %}cell-missing{% endif %}">
+                            {{ (value or '—')|truncate(180) }}
+                          </td>
+                        {% endfor %}
+                      </tr>
+                    {% endif %}
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <p class="form-help">Highlighted cells differ from the value most records share. At least one record must be kept.</p>
+
+            <details class="match-evidence">
+              <summary>Pairwise checks behind this review ({{ cluster.candidate_ids|length }})</summary>
+              {% for candidate_id in cluster.candidate_ids %}
+                {% set candidate = candidates_by_id.get(candidate_id) %}
+                {% if candidate %}
+                  <div class="evidence-row">
+                    <strong>{% if candidate.rule %}{{ m.rule_tag(rules, candidate.rule) }}{% endif %} {{ candidate.label }}</strong>
+                    <small>{% for record_id in candidate.record_ids %}{{ by_id[record_id].source_filename }} row {{ by_id[record_id].source_row }}{% if not loop.last %} ↔ {% endif %}{% endfor %}</small>
+                    {% if candidate.signals %}
+                      <div class="evidence-chips">{% for signal in candidate.signals %}<span>{{ signal }}</span>{% endfor %}</div>
+                    {% endif %}
+                    <small>{{ candidate.reason }}</small>
+                    {% if candidate.comparison and candidate.record_ids|length == 2 %}
+                      {{ m.comparison_table(candidate.comparison, by_id[candidate.record_ids[0]], by_id[candidate.record_ids[1]], compared_fields, field_labels) }}
+                    {% endif %}
+                  </div>
+                {% endif %}
               {% endfor %}
-            </div>
-            {% if candidate.comparison and candidate.record_ids|length == 2 %}
-              <details class="match-evidence">
-                <summary>Field-by-field comparison</summary>
-                {{ m.comparison_table(candidate.comparison, by_id[candidate.record_ids[0]], by_id[candidate.record_ids[1]], compared_fields, field_labels) }}
-              </details>
-            {% endif %}
-            {{ m.pair_choice('review', candidate.candidate_id, candidate.record_ids, by_id, review_choices.get(candidate.candidate_id), 'Keep all (default)') }}
+            </details>
           </article>
         {% endfor %}
       </section>
@@ -433,7 +498,7 @@
         <div>
           <strong>{% if deduplicated is not none %}Update decisions{% else %}Apply decisions{% endif %}</strong>
           <span>
-            Excluded versions and review-item choices apply in both modes. Manual mode keeps every selected group record; automatic mode keeps
+            Excluded versions and manual-review choices apply in both modes. Manual mode keeps every selected group record; automatic mode keeps
             each group's recommendation.
           </span>
         </div>

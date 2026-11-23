@@ -42,8 +42,10 @@ from .dedup import (
     COMPARED_FIELDS,
     FIELD_LABELS,
     analyze_records,
+    apply_cluster_decisions,
     apply_group_selections,
     apply_family_decisions,
+    build_review_clusters,
     apply_pair_decisions,
     conference_abstract_report,
     enrich_retained_records,
@@ -61,7 +63,7 @@ from .parsers import (
 )
 from .storage import JobStore
 
-__version__ = "0.8.1"
+__version__ = "0.8.2"
 
 EXPORT_FIELDS = [
     "record_id",
@@ -339,6 +341,7 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
         reports = store.load_json(job_id, "reports", [])
         groups = store.load_json(job_id, "groups", [])
         review_candidates = store.load_json(job_id, "review_candidates", [])
+        review_clusters = _review_clusters(store, job_id)
         conference_report = store.load_json(
             job_id, "conference_abstract_report", {}
         )
@@ -367,6 +370,8 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
             reports=reports,
             groups=groups,
             review_candidates=review_candidates,
+            review_clusters=review_clusters,
+            candidates_by_id={item["candidate_id"]: item for item in review_candidates},
             conference_report=conference_report,
             by_id=by_id,
             deduplicated=deduplicated,
@@ -385,7 +390,7 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
             rules=RULES,
             compared_fields=COMPARED_FIELDS,
             field_labels=FIELD_LABELS,
-            review_choices=(deduplication or {}).get("review_choices", {}),
+            review_choices=(deduplication or {}).get("review_cluster_choices", {}),
             family_choices=(deduplication or {}).get("family_choices", {}),
             ttl_hours=app.config["JOB_TTL_HOURS"],
         )
@@ -402,11 +407,14 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
                 selections[group["group_id"]] = request.form.getlist(
                     f"keep.{group['group_id']}"
                 )
-        review_candidates = store.load_json(job_id, "review_candidates", [])
+        review_clusters = _review_clusters(store, job_id)
         families = store.load_json(job_id, "related_families", [])
+        # A cluster's checkboxes are only meaningful when its card was in the
+        # submitted form; otherwise every record is kept.
         review_choices = {
-            item["candidate_id"]: request.form.get(f"review.{item['candidate_id']}", "all")
-            for item in review_candidates
+            cluster["cluster_id"]: request.form.getlist(f"reviewkeep.{cluster['cluster_id']}")
+            for cluster in review_clusters
+            if request.form.get(f"reviewcluster.{cluster['cluster_id']}")
         }
         family_choices = {
             family["family_id"]: request.form.getlist(f"exclude.{family['family_id']}")
@@ -419,8 +427,8 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
             enriched, enrichment_audit = enrich_retained_records(
                 kept, records, groups, final_selections
             )
-            enriched, removed, applied_reviews = apply_pair_decisions(
-                enriched, removed, review_candidates, review_choices, "candidate_id"
+            enriched, removed, applied_reviews = apply_cluster_decisions(
+                enriched, removed, review_clusters, review_choices
             )
             enriched, removed, applied_families = apply_family_decisions(
                 enriched, removed, families, family_choices
@@ -440,12 +448,12 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
                 "output_records": len(enriched),
                 "removed_records": len(removed),
                 "selections": final_selections,
-                "review_choices": applied_reviews,
+                "review_cluster_choices": applied_reviews,
                 "family_choices": applied_families,
                 "removals": removal_reasons(
                     groups,
                     final_selections,
-                    review_candidates,
+                    review_clusters,
                     applied_reviews,
                     families,
                     applied_families,
@@ -548,6 +556,7 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
             "publication_versions": store.load_json(job_id, "versions", {}),
             "duplicate_groups": store.load_json(job_id, "groups", []),
             "review_candidates": store.load_json(job_id, "review_candidates", []),
+            "review_clusters": _review_clusters(store, job_id),
             "related_links": store.load_json(job_id, "related_links", []),
             "related_families": store.load_json(job_id, "related_families", []),
             "separated_pairs": store.load_json(job_id, "separated_pairs", []),
@@ -599,10 +608,25 @@ def _load_analysis(store: JobStore, job_id: str) -> dict[str, Any]:
     return {
         "groups": store.load_json(job_id, "groups", []),
         "review_candidates": store.load_json(job_id, "review_candidates", []),
+        "review_clusters": _review_clusters(store, job_id),
         "related_links": store.load_json(job_id, "related_links", []),
         "related_families": store.load_json(job_id, "related_families", []),
         "versions": store.load_json(job_id, "versions", {}),
     }
+
+
+def _review_clusters(store: JobStore, job_id: str) -> list[dict[str, Any]]:
+    """Stored review clusters, rebuilt (and saved) for jobs from v0.8.1 or older."""
+
+    clusters = store.load_json(job_id, "review_clusters")
+    if clusters is None:
+        clusters = build_review_clusters(
+            store.load_json(job_id, "master", []),
+            store.load_json(job_id, "review_candidates", []),
+            store.load_json(job_id, "groups", []),
+        )
+        store.save_json(job_id, "review_clusters", clusters)
+    return clusters
 
 
 def _owned_manifest(store: JobStore, job_id: str) -> dict[str, Any]:
@@ -730,6 +754,7 @@ def _finalize_master(
     store.save_json(job_id, "reports", list(report_data.values()))
     store.save_json(job_id, "groups", groups)
     store.save_json(job_id, "review_candidates", review_candidates)
+    store.save_json(job_id, "review_clusters", analysis["review_clusters"])
     store.save_json(job_id, "conference_abstract_report", conference_report)
     store.save_json(job_id, "related_links", analysis["related_links"])
     store.save_json(job_id, "related_families", analysis["related_families"])

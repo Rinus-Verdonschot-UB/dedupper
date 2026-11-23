@@ -1501,3 +1501,21 @@ thead th, .comparison-table thead th { background: var(--navy); color: #ffffff; 
   .utility-inner > span { display: none; }
   .utility-inner { justify-content: flex-end; }
 }
+
+/* v0.8.2 · manual-review clusters shown side by side */
+.cluster-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin-top: 0.5rem; }
+.cluster-table th, .cluster-table td { padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; overflow-wrap: anywhere; min-width: 11rem; }
+.cluster-table thead th { background: var(--navy); color: #ffffff; font-weight: 600; }
+.cluster-table tbody th { width: 10rem; min-width: 8rem; color: var(--navy); font-weight: 600; }
+.cluster-table tbody th small { display: block; color: var(--muted); font-weight: 400; }
+.cluster-row { display: block; font-weight: 400; opacity: 0.9; }
+.cluster-keep td { background: var(--highlight); }
+.keep-choice { display: flex; gap: 0.45rem; align-items: center; cursor: pointer; font-weight: 600; }
+.cluster-flag { display: block; margin-top: 0.4rem; font-size: 0.78rem; font-weight: 600; }
+.flag-duplicate { color: var(--blue-dark); }
+.flag-identical { color: var(--green); }
+.agree-agree th small { color: var(--green); }
+.agree-differs th small { color: var(--orange-dark); }
+.cell-odd { background: var(--orange-soft); font-weight: 600; }
+.cell-missing { color: var(--muted); }
+.review-cluster .conflict-reason + .conflict-reason { margin-top: -0.4rem; }

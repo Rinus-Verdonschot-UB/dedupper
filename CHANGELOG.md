@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.8.2 (2026-11-23)
+
+- **Manual-review items that share records are now shown as one card.** For
+  example, three records with the same DOI used to produce two or three
+  separate pairwise "DOI metadata conflict" cards. They now appear together in
+  a side-by-side table: one column per record, one row per field, with "all
+  agree / differs / missing" per field and the deviating values highlighted.
+- You decide once per card: every record is kept by default; untick any subset
+  to remove it. Keeping none is refused.
+- Inside a card, records that are also in a duplicate group are marked
+  "Duplicate of row N (duplicate group G)", and records identical on every
+  compared field are marked "Identical to row N".
+- The pairwise checks (rule, reason, signals and the two-record comparison) are
+  still listed under "Pairwise checks behind this review".
+- Decision log, removed-records export and audit JSON use the new review
+  clusters (`review_clusters`, `review_cluster_choices`). Jobs created by older
+  versions get their clusters rebuilt automatically.
+- New sample: `sample_data/shared_doi_three_records.ris`. 2 new tests (111 in
+  total).
+
 ## 0.8.1 (2026-11-23)
 
 Visual redesign in line with the Maastricht University Library UX elements

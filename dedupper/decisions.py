@@ -81,22 +81,22 @@ def removal_reasons(
                         "rules": [f"{rule} {rule_name(rule)}" for rule in family["rules"]],
                         "version": unit.get("label", ""),
                     }
-    for via, items, key, choices in (
-        ("manual review", review_items, "candidate_id", review_choices),
-    ):
-        for number, item in enumerate(items, start=1):
-            choice = choices.get(item[key])
-            if not choice:
-                continue
-            for record_id in item["record_ids"]:
-                if record_id != choice and record_id in removed_ids and record_id not in reasons:
-                    reasons[record_id] = {
-                        "via": via,
-                        "item_id": item[key],
-                        "item_number": number,
-                        "kept_record_ids": [choice],
-                        "rules": [f"{item['rule']} {rule_name(item['rule'])}"],
-                    }
+    # review_items are review clusters; review_choices maps a cluster id to
+    # the record ids the user kept.
+    for number, item in enumerate(review_items, start=1):
+        keep = review_choices.get(item.get("cluster_id", ""))
+        if not keep:
+            continue
+        rules = item.get("rules") or [item.get("rule", "")]
+        for record_id in item["record_ids"]:
+            if record_id not in keep and record_id in removed_ids and record_id not in reasons:
+                reasons[record_id] = {
+                    "via": "manual review",
+                    "item_id": item["cluster_id"],
+                    "item_number": number,
+                    "kept_record_ids": list(keep),
+                    "rules": [f"{rule} {rule_name(rule)}" for rule in rules if rule],
+                }
     return reasons
 
 
@@ -108,7 +108,7 @@ def build_annotations(
     by_id = {record["record_id"]: record for record in records}
     versions = analysis.get("versions") or {}
     groups = analysis.get("groups") or []
-    reviews = analysis.get("review_candidates") or []
+    reviews = analysis.get("review_clusters") or []
     families = analysis.get("related_families") or []
     deduplication = deduplication or {}
     removals = deduplication.get("removals", {})
@@ -133,7 +133,9 @@ def build_annotations(
     review_of: dict[str, list[str]] = {}
     for number, item in enumerate(reviews, start=1):
         for record_id in item["record_ids"]:
-            review_of.setdefault(record_id, []).append(f"#{number} {item['label']}")
+            review_of.setdefault(record_id, []).append(
+                f"#{number} {' / '.join(item.get('labels', []))}"
+            )
 
     annotations: dict[str, dict[str, str]] = {}
     for record in records:

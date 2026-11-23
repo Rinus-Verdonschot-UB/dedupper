@@ -33,7 +33,9 @@ __all__ = [
     "analyze_duplicates",
     "analyze_records",
     "apply_group_selections",
+    "apply_cluster_decisions",
     "apply_family_decisions",
+    "build_review_clusters",
     "apply_pair_decisions",
     "build_related_families",
     "choose_best_record",
@@ -1010,6 +1012,7 @@ def analyze_records(
     empty = {
         "groups": [],
         "review_candidates": [],
+        "review_clusters": [],
         "related_links": [],
         "related_families": [],
         "separated_pairs": [],
@@ -1303,9 +1306,11 @@ def analyze_records(
     )
     separated.sort(key=lambda item: (item["rule"], -item["title_score"]))
     families = build_related_families(records, groups, related_links, versions)
+    review_clusters = build_review_clusters(records, reviews, groups)
     return {
         "groups": groups,
         "review_candidates": reviews,
+        "review_clusters": review_clusters,
         "related_links": related_links,
         "related_families": families,
         "separated_pairs": separated,
@@ -1453,6 +1458,203 @@ def apply_family_decisions(
         applied[family["family_id"]] = chosen
         for unit_id in chosen:
             remove_ids.update(valid[unit_id]["record_ids"])
+    still_kept = [record for record in kept if record["record_id"] not in remove_ids]
+    newly_removed = [record for record in kept if record["record_id"] in remove_ids]
+    return still_kept, removed + newly_removed, applied
+
+
+CLUSTER_FIELDS = (
+    "title",
+    "authors",
+    "first_author",
+    "year",
+    "doi",
+    "journal",
+    "pages",
+    "article_number",
+    "issn",
+    "isbn",
+    "publication_type",
+)
+
+
+def _cluster_key(field: str, value: Any) -> str:
+    if field == "first_author":
+        return _author_key(str(value or ""))
+    if field == "authors":
+        return "|".join(
+            "".join(part for part in _author_signature(entry))
+            for entry in _author_entries(value)
+        )
+    return _field_key(field, value)
+
+
+def _field_agreement(
+    members: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Compare one field across all records of a review cluster.
+
+    For each field: ``status`` is ``agree`` (every record with a value has the
+    same normalized value), ``differs`` or ``absent``; ``missing`` counts records
+    without a value; ``odd`` lists records whose value differs from the most
+    common one.
+    """
+
+    result: dict[str, dict[str, Any]] = {}
+    for field in CLUSTER_FIELDS:
+        keys = {
+            member["record_id"]: _cluster_key(field, member.get(field, ""))
+            for member in members
+        }
+        present = {record_id: key for record_id, key in keys.items() if key}
+        missing = len(keys) - len(present)
+        if not present:
+            result[field] = {"status": "absent", "missing": missing, "odd": []}
+            continue
+        counts = Counter(present.values())
+        majority, _ = counts.most_common(1)[0]
+        odd = [record_id for record_id, key in present.items() if key != majority]
+        result[field] = {
+            "status": "agree" if len(counts) == 1 else "differs",
+            "missing": missing,
+            "odd": odd,
+        }
+    return result
+
+
+def build_review_clusters(
+    records: list[dict[str, Any]],
+    reviews: list[dict[str, Any]],
+    groups: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Merge review items that share records into one cluster per set of records.
+
+    Three records with the same DOI produce up to three pairwise review items;
+    the user decides once, seeing all records side by side. Pairwise reasons
+    stay attached as ``items``. Records that are also in a duplicate group, and
+    records identical on every compared field, are marked.
+    """
+
+    by_id = {record["record_id"]: record for record in records}
+    order = {record["record_id"]: index for index, record in enumerate(records)}
+    parent: dict[str, str] = {}
+
+    def find(item: str) -> str:
+        parent.setdefault(item, item)
+        while parent[item] != item:
+            parent[item] = parent[parent[item]]
+            item = parent[item]
+        return item
+
+    for review in reviews:
+        first, *others = review["record_ids"]
+        find(first)
+        for other in others:
+            parent[find(other)] = find(first)
+
+    group_number: dict[str, int] = {}
+    group_members: dict[str, list[str]] = {}
+    for number, group in enumerate(groups, start=1):
+        for record_id in group["record_ids"]:
+            group_number[record_id] = number
+            group_members[record_id] = group["record_ids"]
+
+    clusters_by_root: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for review in reviews:
+        clusters_by_root[find(review["record_ids"][0])].append(review)
+
+    clusters: list[dict[str, Any]] = []
+    for root, items in clusters_by_root.items():
+        member_ids = sorted(
+            {record_id for item in items for record_id in item["record_ids"]},
+            key=lambda record_id: order.get(record_id, 0),
+        )
+        members = [by_id[record_id] for record_id in member_ids if record_id in by_id]
+        signature: dict[str, tuple[str, ...]] = {
+            member["record_id"]: tuple(
+                _cluster_key(field, member.get(field, "")) for field in CLUSTER_FIELDS
+            )
+            for member in members
+        }
+        identical: dict[str, list[str]] = {}
+        for record_id, key in signature.items():
+            twins = [
+                other
+                for other, other_key in signature.items()
+                if other != record_id and other_key == key and any(key)
+            ]
+            if twins:
+                identical[record_id] = twins
+        same_group: dict[str, list[str]] = {}
+        for record_id in member_ids:
+            if record_id in group_members:
+                same_group[record_id] = [
+                    other
+                    for other in member_ids
+                    if other != record_id and other in group_members[record_id]
+                ]
+        labels = []
+        for item in items:
+            if item["label"] not in labels:
+                labels.append(item["label"])
+        reasons = []
+        for item in items:
+            if item["reason"] not in reasons:
+                reasons.append(item["reason"])
+        clusters.append(
+            {
+                "cluster_id": uuid.uuid4().hex,
+                "record_ids": member_ids,
+                "candidate_ids": [item["candidate_id"] for item in items],
+                "labels": labels,
+                "rules": sorted({item["rule"] for item in items}),
+                "reasons": reasons,
+                "agreement": _field_agreement(members),
+                "identical_to": identical,
+                "duplicate_group": {
+                    record_id: group_number[record_id]
+                    for record_id in member_ids
+                    if record_id in group_number
+                },
+                "same_group_members": same_group,
+            }
+        )
+    clusters.sort(key=lambda cluster: order.get(cluster["record_ids"][0], 0))
+    return clusters
+
+
+def apply_cluster_decisions(
+    kept: list[dict[str, Any]],
+    removed: list[dict[str, Any]],
+    clusters: list[dict[str, Any]],
+    decisions: dict[str, list[str]] | None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, list[str]]]:
+    """Apply "keep these records" choices for review clusters.
+
+    ``decisions`` maps a cluster id to the record ids to keep. A cluster that
+    is absent from ``decisions`` keeps every record (the default). Keeping
+    every record is recorded as no choice; keeping none is refused.
+    """
+
+    decisions = decisions or {}
+    applied: dict[str, list[str]] = {}
+    remove_ids: set[str] = set()
+    for number, cluster in enumerate(clusters, start=1):
+        if cluster["cluster_id"] not in decisions:
+            continue
+        keep = [record_id for record_id in decisions[cluster["cluster_id"]] if record_id]
+        valid = set(cluster["record_ids"])
+        if not set(keep) <= valid:
+            raise ValueError(f"Invalid record choice for manual review {number}.")
+        if not keep:
+            raise ValueError(f"Manual review {number}: keep at least one record.")
+        if set(keep) == valid:
+            continue
+        applied[cluster["cluster_id"]] = [
+            record_id for record_id in cluster["record_ids"] if record_id in keep
+        ]
+        remove_ids.update(valid - set(keep))
+    remove_ids -= {record_id for keep in applied.values() for record_id in keep}
     still_kept = [record for record in kept if record["record_id"] not in remove_ids]
     newly_removed = [record for record in kept if record["record_id"] in remove_ids]
     return still_kept, removed + newly_removed, applied
