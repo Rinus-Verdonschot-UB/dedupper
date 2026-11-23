@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dedupper"
-version = "0.8.0"
+version = "0.8.1"
 description = "Parsing-first deduplication of scientific article exports"
 requires-python = ">=3.10"
 dependencies = [
@@ -22,7 +22,7 @@ packages = ["dedupper"]
 include-package-data = false
 
 [tool.setuptools.package-data]
-dedupper = ["templates/*.html", "static/*"]
+dedupper = ["templates/*.html", "static/*", "static/fonts/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

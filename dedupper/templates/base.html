@@ -4,26 +4,46 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Dedupper{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="preload" href="{{ url_for('static', filename='fonts/open-sans-latin-400-normal.woff2') }}" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="{{ url_for('static', filename='fonts/open-sans-latin-600-normal.woff2') }}" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ app_version }}">
     {% block head %}{% endblock %}
   </head>
   <body>
+    <a class="skip-link" href="#content">Skip to main content</a>
+
+    <div class="utility-bar">
+      <div class="utility-inner">
+        <span>Maastricht University Library</span>
+        <nav aria-label="Library links">
+          <a href="https://library.maastrichtuniversity.nl/" rel="noopener">Library website</a>
+        </nav>
+      </div>
+    </div>
+
     <header class="site-header">
-      <a class="brand" href="{{ url_for('index') }}">
-        <img
-          class="brand-logo"
-          src="{{ url_for('static', filename='maastricht-university-logo.png') }}"
-          alt="Maastricht University"
-        >
-        <span class="brand-product">
-          <strong>Dedupper</strong>
-          <small>University Library · Scientific record deduplication</small>
-        </span>
-      </a>
-      <nav class="site-nav"><a href="{{ url_for('rules_page') }}">How matching works</a></nav>
+      <div class="header-inner">
+        <a class="brand" href="{{ url_for('index') }}">
+          <img
+            class="brand-logo"
+            src="{{ url_for('static', filename='maastricht-university-logo.png') }}"
+            alt="Maastricht University"
+          >
+          <span class="brand-product">
+            <strong>Dedupper</strong>
+            <small>Deduplicate bibliographic exports, transparently</small>
+          </span>
+        </a>
+        <nav class="main-nav" aria-label="Main">
+          <a href="{{ url_for('index') }}" {% if request.endpoint == 'index' %}aria-current="page"{% endif %}>New upload</a>
+          <a href="{{ url_for('rules_page') }}" {% if request.endpoint == 'rules_page' %}aria-current="page"{% endif %}>How matching works</a>
+        </nav>
+      </div>
     </header>
 
-    <main class="page-shell">
+    {% block stepper %}{% endblock %}
+
+    <main id="content" class="page-shell" tabindex="-1">
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
           <div class="flash-stack" aria-live="polite">
@@ -36,8 +56,26 @@
       {% block content %}{% endblock %}
     </main>
 
-    <footer>
-      Dedupper {{ app_version }} · Maastricht University Library · Source rows remain traceable through every step
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <div>
+          <h2 class="footer-title">Dedupper</h2>
+          <p>
+            Combine and deduplicate article exports for evidence synthesis. Every
+            decision is explained, and source rows remain traceable through every step.
+          </p>
+          <p class="footer-meta">Version {{ app_version }}</p>
+        </div>
+        <div>
+          <h2 class="footer-title">Help</h2>
+          <ul class="footer-links">
+            <li><a href="{{ url_for('rules_page') }}">How matching works</a></li>
+            <li><a href="https://library.maastrichtuniversity.nl/" rel="noopener">Maastricht University Library</a></li>
+          </ul>
+          <p class="footer-meta">Uploaded files are working data. They are stored only for your job and deleted automatically.</p>
+        </div>
+      </div>
+      <div class="footer-legal">© Maastricht University Library</div>
     </footer>
     {% block scripts %}{% endblock %}
   </body>

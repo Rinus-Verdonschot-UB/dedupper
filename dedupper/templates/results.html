@@ -1,11 +1,13 @@
 {% extends "base.html" %}
+{% from "_stepper.html" import stepper %}
+{% block stepper %}{{ stepper(3) }}{% endblock %}
 {% import "_macros.html" as m %}
 {% block title %}Review results · Dedupper{% endblock %}
 
 {% block content %}
   <section class="page-heading">
     <div>
-      <p class="eyebrow">Step 3 of 3 · Review</p>
+      <p class="eyebrow">Review</p>
       <h1>{{ records|length }} records entered the master dataset.</h1>
     </div>
     <div class="heading-actions">

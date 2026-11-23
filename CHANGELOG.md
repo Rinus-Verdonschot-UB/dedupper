@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.8.1 (2026-11-23)
+
+Visual redesign in line with the Maastricht University Library UX elements
+guide. No change to parsing, matching, decisions or exports.
+
+- Open Sans is now bundled with the app (`static/fonts`, SIL Open Font License)
+  instead of relying on the visitor having it installed; no external font CDN.
+- Library header: navy utility bar with a link to the library website, white
+  header with the UM logo and main navigation, orange accent line.
+- Progress stepper (Upload · Verify columns · Review) under the header.
+- Headings in weight 600 dark blue (#001c3d) on the guide's minor-third scale;
+  body text #333, 16px, line height 1.4em.
+- Layout uses only full-width or two equal columns: upload form beside a
+  "How it works" step list; summary tiles in a 2 × 2 grid; related-publication
+  versions in two columns.
+- One orange accent block per page (the "Deduplicated output ready" result);
+  explanatory notes use grey text-highlight blocks.
+- Link-list buttons with an arrow, square buttons and labels, accordion-style
+  toggles with +/− icons, navy table headers.
+- Navy two-column footer with help links and the data-retention note.
+- Skip-to-content link and visible focus states.
+- No UM web assets are hotlinked; only the logo already shipped with the app is
+  used.
+- 1 new test (109 in total).
+
 ## 0.8.0 (2026-11-23)
 
 Focus: transparency of every deduplication decision, and keeping related but

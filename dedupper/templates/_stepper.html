@@ -1,0 +1,12 @@
+{% macro stepper(current) %}
+  <nav class="stepper" aria-label="Progress">
+    <ol>
+      {% for label in ['Upload', 'Verify columns', 'Review'] %}
+        <li class="{% if loop.index < current %}done{% elif loop.index == current %}current{% endif %}" {% if loop.index == current %}aria-current="step"{% endif %}>
+          <span class="step-number">{{ loop.index }}</span>
+          <span class="step-label">{{ label }}</span>
+        </li>
+      {% endfor %}
+    </ol>
+  </nav>
+{% endmacro %}

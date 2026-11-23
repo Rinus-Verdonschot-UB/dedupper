@@ -61,7 +61,7 @@ from .parsers import (
 )
 from .storage import JobStore
 
-__version__ = "0.8.0"
+__version__ = "0.8.1"
 
 EXPORT_FIELDS = [
     "record_id",

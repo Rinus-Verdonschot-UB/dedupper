@@ -1,10 +1,12 @@
 {% extends "base.html" %}
+{% from "_stepper.html" import stepper %}
+{% block stepper %}{{ stepper(2) }}{% endblock %}
 {% block title %}Verify columns · Dedupper{% endblock %}
 
 {% block content %}
   <section class="page-heading">
     <div>
-      <p class="eyebrow">Step 2 of 3 · Verify</p>
+      <p class="eyebrow">Verify</p>
       <h1>Confirm the meaning of each column.</h1>
     </div>
     <p>

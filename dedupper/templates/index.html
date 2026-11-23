@@ -1,57 +1,66 @@
 {% extends "base.html" %}
+{% from "_stepper.html" import stepper %}
+{% block stepper %}{{ stepper(1) }}{% endblock %}
 {% block title %}Upload sources · Dedupper{% endblock %}
 
 {% block content %}
   <section class="hero">
-    <p class="eyebrow">Step 1 of 3 · Ingest</p>
+    <p class="eyebrow">Ingest</p>
     <h1>Combine article exports without losing a record.</h1>
     <p class="lead">
-      Upload RIS, PubMed (Abstract text or MEDLINE/.nbib), CSV, TSV, XLS or XLSX exports. You will verify how
-      tabular columns map to article fields before the master dataset is created.
+      Upload RIS, PubMed (Abstract text or MEDLINE/.nbib), CSV, TSV, XLS or XLSX
+      exports. You will verify how tabular columns map to article fields before the
+      master dataset is created.
     </p>
   </section>
 
-  <section class="card upload-card">
-    <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data">
-      <div class="field">
-        <label for="file-count">How many files will you combine?</label>
-        <select id="file-count" name="file_count">
-          {% for count in range(1, 11) %}
-            <option value="{{ count }}">{{ count }}</option>
-          {% endfor %}
-        </select>
-      </div>
+  <div class="row row-halves">
+    <section class="card upload-card" aria-labelledby="upload-title">
+      <h2 id="upload-title" class="card-title">Upload your exports</h2>
+      <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data">
+        <div class="field">
+          <label for="file-count">How many files will you combine?</label>
+          <select id="file-count" name="file_count">
+            {% for count in range(1, 11) %}
+              <option value="{{ count }}">{{ count }}</option>
+            {% endfor %}
+          </select>
+        </div>
 
-      <div id="file-inputs" class="file-inputs" aria-live="polite"></div>
+        <div id="file-inputs" class="file-inputs" aria-live="polite"></div>
 
-      <div class="notice">
-        <strong>Nothing is deduplicated during upload.</strong>
-        All non-empty source records first enter one master dataset, including
-        doubles, triples and records with missing fields.
-      </div>
+        <div class="notice">
+          <strong>Nothing is deduplicated during upload.</strong>
+          All non-empty source records first enter one master dataset, including
+          doubles, triples and records with missing fields.
+        </div>
 
-      <button class="button button-primary" type="submit">Inspect files</button>
-      <p class="form-help">Accepted: {{ supported }} · Combined limit: {{ (config.MAX_CONTENT_LENGTH / 1048576)|round|int }} MB{% if ttl_hours %} · Uploads are deleted automatically after {{ ttl_hours|round|int }} hours{% endif %}</p>
-    </form>
-  </section>
+        <button class="button button-primary" type="submit">Inspect files</button>
+        <p class="form-help">Accepted: {{ supported }} · Combined limit: {{ (config.MAX_CONTENT_LENGTH / 1048576)|round|int }} MB{% if ttl_hours %} · Uploads are deleted automatically after {{ ttl_hours|round|int }} hours{% endif %}</p>
+      </form>
+    </section>
 
-  <section class="feature-grid">
-    <article>
-      <span class="feature-number">01</span>
-      <h2>Verify mappings</h2>
-      <p>Review inferred core fields plus full authors, pages, article numbers and serial identifiers with samples.</p>
-    </article>
-    <article>
-      <span class="feature-number">02</span>
-      <h2>Audit ingestion</h2>
-      <p>Compare logical items with parsed records for every source file.</p>
-    </article>
-    <article>
-      <span class="feature-number">03</span>
-      <h2>Review duplicates</h2>
-      <p>See the rule and field-by-field evidence behind every match, with preprints, conference abstracts and protocols linked as related publications instead of being deleted.</p>
-    </article>
-  </section>
+    <section class="steps-column" aria-labelledby="steps-title">
+      <h2 id="steps-title" class="card-title">How it works</h2>
+      <ol class="step-list">
+        <li>
+          <h3>Verify mappings</h3>
+          <p>Review inferred core fields plus full authors, pages, article numbers and serial identifiers with samples.</p>
+        </li>
+        <li>
+          <h3>Audit ingestion</h3>
+          <p>Compare logical items with parsed records for every source file.</p>
+        </li>
+        <li>
+          <h3>Review duplicates</h3>
+          <p>See the rule and field-by-field evidence behind every match. Preprints, conference abstracts and protocols are linked as related publications instead of being deleted.</p>
+        </li>
+      </ol>
+      <ul class="link-list">
+        <li><a href="{{ url_for('rules_page') }}">How matching works</a></li>
+      </ul>
+    </section>
+  </div>
 {% endblock %}
 
 {% block scripts %}

@@ -1,4 +1,17 @@
-# Deploying Dedupper 0.8.0 on DSRI (OpenShift)
+# Deploying Dedupper on DSRI (OpenShift)
+
+## Updating an existing deployment that builds from GitHub
+
+If DSRI builds from the GitHub repository (build config `dedupper-git`),
+replace the files in your local clone with the files from the new zip, commit,
+push, then rebuild:
+
+```bash
+oc start-build dedupper-git --follow
+oc rollout status deployment/dedupper
+```
+
+The rest of this document covers first-time deployments.
 
 The app listens on port **8080**, runs as a non-root user and works with
 OpenShift's random UIDs. Keep **one replica**: jobs are stored as files on one
@@ -63,7 +76,7 @@ Keep the existing `DEDUPPER_SECRET_KEY` if you already set one.
 
 ## Check after deploying
 
-- `https://<route>/health` returns `{"status": "ok", "version": "0.8.0"}`.
+- `https://<route>/health` returns `{"status": "ok", "version": "<the new version>"}`.
 - Upload `sample_data/publication_versions.ris`. You should see one duplicate
   group (two copies of the journal article) and one related-publication family
   with a preprint, a conference abstract, a protocol and a correction notice.

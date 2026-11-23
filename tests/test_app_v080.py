@@ -9,7 +9,7 @@ import os
 import time
 from pathlib import Path
 
-from dedupper import create_app
+from dedupper import __version__, create_app
 from dedupper.storage import JobStore
 
 SAMPLES = Path(__file__).resolve().parents[1] / "sample_data"
@@ -199,7 +199,7 @@ def test_audit_json_contains_rules_settings_and_related_links(tmp_path: Path) ->
 
     audit = json.loads(client.get(f"/jobs/{job_id}/audit").data)
 
-    assert audit["dedupper_version"] == "0.8.0"
+    assert audit["dedupper_version"] == __version__
     assert "V1" in audit["rules"]
     assert audit["analysis"]["settings"]["fuzzy_title_threshold"] == 92.0
     assert len(audit["related_links"]) == 1
@@ -285,5 +285,21 @@ def test_security_headers_and_health(tmp_path: Path) -> None:
 
     response = client.get("/health")
 
-    assert response.json == {"status": "ok", "version": "0.8.0"}
+    assert response.json == {"status": "ok", "version": __version__}
     assert response.headers["X-Content-Type-Options"] == "nosniff"
+
+
+def test_house_style_layout_and_self_hosted_font(tmp_path: Path) -> None:
+    client = make_app(tmp_path).test_client()
+
+    body = client.get("/").data.decode()
+
+    assert 'href="#content"' in body and 'id="content"' in body
+    assert 'aria-current="step"' in body
+    assert "fonts.googleapis.com" not in body
+    assert "library.maastrichtuniversity.nl/wp-content" not in body
+    font = client.get("/static/fonts/open-sans-latin-400-normal.woff2")
+    assert font.status_code == 200
+    assert len(font.data) > 10_000
+    css = client.get("/static/style.css").data.decode()
+    assert "#001c3d" in css and "#d2460f" in css.casefold() and "Open Sans" in css
