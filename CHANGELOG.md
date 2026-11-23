@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.8.3 (2026-11-23)
+
+- **Visible "working" feedback on long-running buttons.** After clicking
+  "Confirm and parse all rows" a spinner overlay appears with the message
+  "Parsing all rows and looking for duplicates…" and the button changes to
+  "Working…". The same applies to uploading files, re-scanning the header row,
+  applying deduplication decisions and deleting a job.
+- Submit buttons are disabled while a request runs, so a double click can no
+  longer start the same job twice. The clicked button's value is still sent.
+- Export/download buttons show a small spinner for a few seconds ("Preparing
+  download…"); the page stays usable.
+- Accessible: the message is announced through an `aria-live` status region,
+  the page is marked `aria-busy`, and the spinner stops animating for users who
+  prefer reduced motion. Using the browser Back button resets the state.
+- No external JavaScript; styling follows the UM house colours. No changes to
+  matching logic. 111 tests pass.
+
 ## 0.8.2 (2026-11-23)
 
 - **Manual-review items that share records are now shown as one card.** For

@@ -11,7 +11,7 @@
       <h1>{{ records|length }} records entered the master dataset.</h1>
     </div>
     <div class="heading-actions">
-      <form class="export-form" action="{{ url_for('export', job_id=job_id, dataset='master') }}" method="get">
+      <form class="export-form" action="{{ url_for('export', job_id=job_id, dataset='master') }}" method="get" data-busy-download="Preparing download…">
         <label for="master-format">Master format</label>
         <select id="master-format" name="format">
           <option value="csv">CSV</option>
@@ -164,7 +164,7 @@
           · <a href="{{ url_for('export', job_id=job_id, dataset='decisions', format='xlsx') }}">Decision log (Excel)</a>
         </p>
       </div>
-      <form class="export-form export-form-on-dark" action="{{ url_for('export', job_id=job_id, dataset='deduplicated') }}" method="get">
+      <form class="export-form export-form-on-dark" action="{{ url_for('export', job_id=job_id, dataset='deduplicated') }}" method="get" data-busy-download="Preparing download…">
         <label for="deduplicated-format">Output format</label>
         <select id="deduplicated-format" name="format">
           <option value="csv">CSV</option>
@@ -190,7 +190,9 @@
         <div class="review-toggle-content">
     {% endif %}
 
-    <form action="{{ url_for('deduplicate', job_id=job_id) }}" method="post">
+    <form action="{{ url_for('deduplicate', job_id=job_id) }}" method="post"
+          data-busy="Applying your decisions…"
+          data-busy-detail="Building the deduplicated dataset and the decision log.">
 
     {% if related_families %}
       <section class="related-section" aria-labelledby="related-title">
@@ -560,7 +562,7 @@
   {% endif %}
 
   <section class="privacy-note">
-    <form action="{{ url_for('delete_job', job_id=job_id) }}" method="post">
+    <form action="{{ url_for('delete_job', job_id=job_id) }}" method="post" data-busy="Deleting your job…">
       <p>
         Your uploads and results are stored on the server only for this job
         {% if ttl_hours %}and are deleted automatically after {{ ttl_hours|round|int }} hours{% endif %}.
@@ -571,6 +573,3 @@
   </section>
 {% endblock %}
 
-{% block scripts %}
-  <script src="{{ url_for('static', filename='app.js') }}"></script>
-{% endblock %}

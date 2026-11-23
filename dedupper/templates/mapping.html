@@ -15,7 +15,9 @@
     </p>
   </section>
 
-  <form action="{{ url_for('process_mapping', job_id=job_id) }}" method="post">
+  <form action="{{ url_for('process_mapping', job_id=job_id) }}" method="post"
+        data-busy="Parsing all rows and looking for duplicates…"
+        data-busy-detail="This can take a minute for large files. Please keep this page open.">
     {% for table in tables %}
       <section class="card mapping-card">
         <div class="card-header">
@@ -143,6 +145,7 @@
       id="header-form-{{ loop.index }}"
       action="{{ url_for('update_header', job_id=job_id, table_id=table.table_id) }}"
       method="post"
+      data-busy="Re-scanning the header row…"
     ></form>
   {% endfor %}
 {% endblock %}

@@ -77,6 +77,15 @@
       </div>
       <div class="footer-legal">© Maastricht University Library</div>
     </footer>
+    <div id="busy-overlay" class="busy-overlay" hidden>
+      <div class="busy-box">
+        <span class="spinner" aria-hidden="true"></span>
+        <p class="busy-message"></p>
+        <p class="busy-detail"></p>
+      </div>
+    </div>
+    <p id="busy-status" class="visually-hidden" role="status" aria-live="polite"></p>
+    <script src="{{ url_for('static', filename='app.js') }}?v={{ app_version }}"></script>
     {% block scripts %}{% endblock %}
   </body>
 </html>

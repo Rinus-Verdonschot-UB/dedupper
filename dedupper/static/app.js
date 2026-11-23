@@ -69,6 +69,99 @@
     });
   }
 
+  // Busy feedback for long-running submits: a spinner overlay with a message,
+  // announced to screen readers, and protection against double submits.
+  function initialiseBusyForms() {
+    const overlay = document.querySelector("#busy-overlay");
+    const status = document.querySelector("#busy-status");
+
+    function submitButtons(form) {
+      const inside = [...form.querySelectorAll("button[type=submit], button:not([type]), input[type=submit]")];
+      const outside = form.id
+        ? [...document.querySelectorAll(`[form="${CSS.escape(form.id)}"]`)]
+        : [];
+      return inside.concat(outside);
+    }
+
+    function setButtonBusy(button, label) {
+      if (!button || button.dataset.originalHtml !== undefined) return;
+      button.dataset.originalHtml = button.innerHTML;
+      button.classList.add("is-busy");
+      button.setAttribute("aria-disabled", "true");
+      button.innerHTML = '<span class="button-spinner" aria-hidden="true"></span>';
+      button.append(document.createTextNode(label));
+    }
+
+    function resetButton(button) {
+      if (button.dataset.originalHtml === undefined) return;
+      button.innerHTML = button.dataset.originalHtml;
+      delete button.dataset.originalHtml;
+      button.classList.remove("is-busy");
+      button.removeAttribute("aria-disabled");
+      button.disabled = false;
+    }
+
+    function resetAll() {
+      document.querySelectorAll("form[data-submitting]").forEach((form) => {
+        delete form.dataset.submitting;
+      });
+      document.querySelectorAll("[data-original-html]").forEach(resetButton);
+      if (overlay) overlay.hidden = true;
+      if (status) status.textContent = "";
+      document.body.removeAttribute("aria-busy");
+    }
+
+    document.querySelectorAll("form[data-busy]").forEach((form) => {
+      form.addEventListener("submit", (event) => {
+        if (form.dataset.submitting) {
+          event.preventDefault();
+          return;
+        }
+        form.dataset.submitting = "true";
+        const message = form.dataset.busy;
+        const detail = form.dataset.busyDetail || "";
+        setButtonBusy(event.submitter, "Working…");
+        // Disable after the browser has captured the form data, so the
+        // clicked button's name/value (e.g. mode=manual) is still sent.
+        window.setTimeout(() => {
+          submitButtons(form).forEach((button) => { button.disabled = true; });
+        }, 0);
+        document.body.setAttribute("aria-busy", "true");
+        if (overlay) {
+          overlay.querySelector(".busy-message").textContent = message;
+          overlay.querySelector(".busy-detail").textContent = detail;
+          overlay.hidden = false;
+        }
+        if (status) status.textContent = `${message} ${detail}`.trim();
+      });
+    });
+
+    // Downloads stay on this page, so only the button shows progress briefly.
+    document.querySelectorAll("form[data-busy-download]").forEach((form) => {
+      form.addEventListener("submit", (event) => {
+        const button = event.submitter || form.querySelector("button");
+        if (!button || button.dataset.originalHtml !== undefined) {
+          event.preventDefault();
+          return;
+        }
+        const label = form.dataset.busyDownload;
+        setButtonBusy(button, label);
+        if (status) status.textContent = label;
+        window.setTimeout(() => {
+          resetButton(button);
+          if (status) status.textContent = "";
+        }, 4000);
+      });
+    });
+
+    // Returning with the back button can restore a page from cache in its
+    // busy state; reset it.
+    window.addEventListener("pageshow", (event) => {
+      if (event.persisted) resetAll();
+    });
+  }
+
   initialiseFileInputs();
   initialiseRecordSelections();
+  initialiseBusyForms();
 })();
