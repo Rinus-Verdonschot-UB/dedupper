@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}How matching works · Dedupper{% endblock %}
+
+{% block content %}
+  <section class="hero">
+    <p class="eyebrow">Transparency</p>
+    <h1>How Dedupper decides.</h1>
+    <p class="lead">
+      Every pair of records Dedupper compares gets one of the rules below. The rule
+      ID is shown next to each duplicate group, review item, related publication and
+      near miss, and it is written into the decision log and audit JSON.
+    </p>
+  </section>
+
+  <section class="card">
+    <h2>Decision outcomes</h2>
+    <ul class="plain-list">
+      <li><strong>duplicate</strong>: proposed for a duplicate group. You choose what to keep; automatic mode keeps the recommended copy.</li>
+      <li><strong>related</strong>: different publication versions of the same work (preprint, conference abstract, protocol, notice…). Both are kept unless you choose otherwise.</li>
+      <li><strong>review</strong>: an ambiguous match that is never removed automatically.</li>
+      <li><strong>separate</strong>: compared and kept apart; listed as a near miss.</li>
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>Rules</h2>
+    <div class="table-scroll">
+      <table class="audit-table rules-table">
+        <thead><tr><th>ID</th><th>Name</th><th>Outcome</th><th>When it applies</th></tr></thead>
+        <tbody>
+          {% for rule_id, rule in rules.items() %}
+            <tr id="rule-{{ rule_id }}">
+              <th>{{ rule_id }}</th>
+              <td>{{ rule.name }}</td>
+              <td><span class="outcome outcome-{{ rule.outcome }}">{{ rule.outcome }}</span></td>
+              <td>{{ rule.description }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Thresholds in force</h2>
+    <div class="table-scroll">
+      <table class="audit-table">
+        <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+        <tbody>
+          {% for key, value in settings.items() %}
+            <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="form-help">Administrators can change the title thresholds with DEDUPPER_FUZZY_TITLE_THRESHOLD and DEDUPPER_RELATED_TITLE_THRESHOLD. The values used for a job are recorded in its audit JSON.</p>
+  </section>
+
+  <section class="card">
+    <h2>Publication versions</h2>
+    <p>
+      Each record is labelled from, in order of strength: correction/retraction/comment
+      markers in the title; the publication or document type (RIS PT/DT/M3, PubMed
+      publication types, mapped CSV/Excel column); preprint-server DOI prefixes
+      (bioRxiv/medRxiv, arXiv, SSRN, Research Square, OSF, ChemRxiv and others);
+      preprint-server or trial-registry source names and links; protocol and
+      conference-abstract title markers; and RIS types CONF, CPAPER and THES.
+      The evidence is shown next to every label.
+    </p>
+    <ul class="plain-list">
+      {% for kind, label in version_labels.items() %}<li>{{ label }}</li>{% endfor %}
+    </ul>
+    <p>
+      Two records of different versions are never grouped as duplicates. When only
+      one copy states a type (for example "Conference Abstract") and the other
+      states none, they are grouped only if the DOI or journal/ISSN also agrees;
+      otherwise they are shown as related (rule V2).
+    </p>
+  </section>
+{% endblock %}

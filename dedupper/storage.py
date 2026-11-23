@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -50,3 +51,29 @@ class JobStore:
         path = self.job_dir(job_id)
         if path.exists():
             shutil.rmtree(path)
+
+    def purge_expired(self, ttl_hours: float, now: float | None = None) -> int:
+        """Delete job folders older than *ttl_hours*; return how many were removed.
+
+        Uploaded bibliographic exports are working data. Expired jobs are removed
+        whenever a new upload starts, so no scheduler is needed in the container.
+        """
+
+        if not ttl_hours or ttl_hours <= 0:
+            return 0
+        cutoff = (time.time() if now is None else now) - ttl_hours * 3600
+        removed = 0
+        for path in self.root.iterdir():
+            if not path.is_dir() or not path.name.isalnum():
+                continue
+            try:
+                newest = max(
+                    [path.stat().st_mtime]
+                    + [item.stat().st_mtime for item in path.glob("*.json")]
+                )
+            except OSError:
+                continue
+            if newest < cutoff:
+                shutil.rmtree(path, ignore_errors=True)
+                removed += 1
+        return removed

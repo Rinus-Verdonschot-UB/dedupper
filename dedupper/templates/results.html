@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_macros.html" as m %}
 {% block title %}Review results · Dedupper{% endblock %}
 
 {% block content %}
@@ -17,7 +18,9 @@
         </select>
         <button class="button button-secondary" type="submit">Download master</button>
       </form>
+      <a class="text-link" href="{{ url_for('export', job_id=job_id, dataset='decisions', format='csv') }}">Decision log (CSV)</a>
       <a class="text-link" href="{{ url_for('download_audit', job_id=job_id) }}">Audit JSON</a>
+      <a class="text-link" href="{{ url_for('rules_page') }}" target="_blank" rel="noopener">How matching works</a>
     </div>
   </section>
 
@@ -84,12 +87,12 @@
     <article class="metric-card">
       <span>Duplicate groups</span>
       <strong>{{ groups|length }}</strong>
-      <small>DOI or compatible-title candidates</small>
+      <small>{{ total_duplicate_records }} records, including the copies that will be kept</small>
     </article>
-    <article class="metric-card">
-      <span>Records in groups</span>
-      <strong>{{ total_duplicate_records }}</strong>
-      <small>Includes the copies that will be kept</small>
+    <article class="metric-card {% if related_families %}metric-card-info{% endif %}">
+      <span>Related publications</span>
+      <strong>{{ related_families|length }}</strong>
+      <small>Works found in several versions; all kept unless you decide otherwise</small>
     </article>
     <article class="metric-card {% if review_candidates %}metric-card-alert{% endif %}">
       <span>Needs manual review</span>
@@ -98,51 +101,27 @@
     </article>
   </section>
 
-  {% if review_candidates %}
-    <section class="review-candidates" aria-labelledby="review-candidates-title">
-      <div class="review-candidates-heading">
-        <div>
-          <p class="source-label">Safety review</p>
-          <h2 id="review-candidates-title">{{ review_candidates|length }} ambiguous match(es) kept separate.</h2>
-        </div>
-        <p>
-          These records were not placed in an automatic duplicate group. An
-          identical DOI can be incorrect or reused, while an identical title
-          without supporting metadata is not enough for deletion.
-        </p>
+  <section class="card version-summary" aria-labelledby="version-summary-title">
+    <div class="card-header">
+      <div>
+        <p class="source-label">Publication-version check</p>
+        <h2 id="version-summary-title">What kind of publication is each record?</h2>
       </div>
-      {% for candidate in review_candidates %}
-        <article class="card conflict-card">
-          <div class="card-header">
-            <div>
-              <p class="source-label">Manual review {{ loop.index }}</p>
-              <h3>{{ candidate.label }}</h3>
-            </div>
-            <span class="status status-bad">Kept separate</span>
-          </div>
-          <p class="conflict-reason">{{ candidate.reason }}</p>
-          {% if candidate.signals %}
-            <div class="evidence-chips" aria-label="Matching evidence">
-              {% for signal in candidate.signals %}<span>{{ signal }}</span>{% endfor %}
-            </div>
-          {% endif %}
-          <div class="conflict-records">
-            {% for record_id in candidate.record_ids %}
-              {% set record = by_id[record_id] %}
-              <div>
-                <strong>{{ record.title or '(No mapped title)' }}</strong>
-                <span>{{ record.first_author or 'No author' }} · {{ record.year or 'No year' }} · {{ record.journal or 'No journal' }}</span>
-                <code>{{ record.doi or 'No DOI' }}</code>
-                <small>{{ record.source_filename }} · source row {{ record.source_row }}</small>
-              </div>
-            {% endfor %}
-          </div>
-        </article>
+    </div>
+    <p>
+      Preprints, conference abstracts, protocols, registry records and correction
+      notices are labelled from their publication type, DOI prefix, source name or
+      title markers. Records of different versions are <strong>never</strong> merged
+      automatically; similar ones are linked below as related publications.
+    </p>
+    <div class="evidence-chips">
+      {% for kind, count in version_counts.items()|sort(attribute=1, reverse=true) %}
+        <span class="version-chip version-{{ kind|replace(' ', '-') }}">{{ version_labels.get(kind, kind) }}: {{ count }}</span>
       {% endfor %}
-    </section>
-  {% endif %}
+    </div>
+  </section>
 
-  {% if conference_report.get('identified_records', 0) %}
+    {% if conference_report.get('identified_records', 0) %}
     <section class="conference-safeguard" aria-labelledby="conference-safeguard-title">
       <div>
         <p class="source-label">Publication-type check</p>
@@ -172,9 +151,15 @@
         <p class="eyebrow">Deduplicated output ready</p>
         <h2>{{ deduplicated|length }} records retained.</h2>
         <p>
-          {{ records|length - deduplicated|length }} duplicate record(s) removed.
-          Compatible missing metadata was copied into retained records with a
-          field-level audit. The untouched master dataset remains available separately.
+          {{ records|length - deduplicated|length }} record(s) removed
+          ({{ deduplication.get('mode', 'automatic') }} mode). Every removal is
+          explained in the decision log. Compatible missing metadata was copied into
+          retained records with a field-level audit. The untouched master dataset
+          remains available separately.
+        </p>
+        <p class="completion-links">
+          <a href="{{ url_for('export', job_id=job_id, dataset='removed', format='csv') }}">Removed records (CSV)</a>
+          · <a href="{{ url_for('export', job_id=job_id, dataset='decisions', format='xlsx') }}">Decision log (Excel)</a>
         </p>
       </div>
       <form class="export-form export-form-on-dark" action="{{ url_for('export', job_id=job_id, dataset='deduplicated') }}" method="get">
@@ -189,34 +174,146 @@
     </section>
   {% endif %}
 
-  {% if groups %}
+  {% set has_decisions = groups or review_candidates or related_families %}
+  {% if has_decisions %}
     {% if deduplicated is not none %}
       <details class="review-toggle">
         <summary>
           <span>
-            <strong>Duplicate groups hidden</strong>
+            <strong>Review items hidden</strong>
             <small>Your deduplicated result is shown above.</small>
           </span>
-          <span class="review-toggle-action">Review or change {{ groups|length }} group(s)</span>
+          <span class="review-toggle-action">Review or change your decisions</span>
         </summary>
         <div class="review-toggle-content">
     {% endif %}
 
     <form action="{{ url_for('deduplicate', job_id=job_id) }}" method="post">
+
+    {% if related_families %}
+      <section class="related-section" aria-labelledby="related-title">
+        <div class="review-candidates-heading">
+          <div>
+            <p class="source-label">Related publications</p>
+            <h2 id="related-title">{{ related_families|length }} work(s) appear in more than one publication version.</h2>
+          </div>
+          <p>
+            For example a preprint and its journal article, a conference abstract and
+            the full paper, a protocol and the results paper, or a correction notice
+            and the article it corrects. They are different publications, so every
+            version is kept by default. Tick a version only if your review protocol
+            says to exclude it.
+          </p>
+        </div>
+        {% for family in related_families %}
+          {% set family_loop = loop %}
+          {% set excluded = family_choices.get(family.family_id, []) %}
+          <article class="card related-card">
+            <div class="card-header">
+              <div>
+                <p class="source-label">Family {{ loop.index }} · {{ family.units|length }} versions · {{ family.confidence }} link</p>
+                <h3>{{ family.relationships|join(' · ') }}</h3>
+              </div>
+              <span>{% for rule_id in family.rules %}{{ m.rule_tag(rules, rule_id) }}{% endfor %}</span>
+            </div>
+            <div class="family-units">
+              {% for unit in family.units %}
+                {% set first = by_id[unit.record_ids[0]] %}
+                <div class="family-unit">
+                  <span class="record-badges">
+                    <span class="version-badge version-{{ unit.kind|replace(' ', '-') }}">{{ unit.label }}</span>
+                    {% if unit.group_number %}<span class="group-ref">{{ unit.record_ids|length }} copies · duplicate group {{ unit.group_number }}</span>{% endif %}
+                  </span>
+                  <strong>{{ first.title or '(No mapped title)' }}</strong>
+                  <span>{{ first.first_author or 'No author' }} · {{ first.year or 'No year' }} · {{ first.journal or 'No journal' }}</span>
+                  <code>{{ first.doi or 'No DOI' }}</code>
+                  {% if unit.evidence %}<span class="version-evidence">Why {{ unit.label|lower }}: {{ unit.evidence|join('; ') }}</span>{% endif %}
+                  <small>{% for record_id in unit.record_ids %}{% set r = by_id[record_id] %}{{ r.source_filename }} row {{ r.source_row }}{% if not loop.last %}; {% endif %}{% endfor %}</small>
+                  <label class="exclude-choice">
+                    <input type="checkbox" name="exclude.{{ family.family_id }}" value="{{ unit.unit_id }}" {% if unit.unit_id in excluded %}checked{% endif %}>
+                    Exclude this version from the deduplicated output
+                  </label>
+                </div>
+              {% endfor %}
+            </div>
+            <details class="match-evidence">
+              <summary>Why these versions were linked ({{ family.links|length }} comparison{{ 's' if family.links|length != 1 }})</summary>
+              {% for link in family.links %}
+                {% set left = by_id[link.record_ids[0]] %}
+                {% set right = by_id[link.record_ids[1]] %}
+                <div class="evidence-row">
+                  <strong>{{ m.rule_tag(rules, link.rule) }} {{ link.relationship }}</strong>
+                  <small>{{ left.source_filename }} row {{ left.source_row }} ↔ {{ right.source_filename }} row {{ right.source_row }} · {{ link.confidence }}</small>
+                  <small>{{ link.reason }}</small>
+                  {{ m.comparison_table(link.comparison, left, right, compared_fields, field_labels,
+                       versions.get(left.record_id, {}).get('label', 'Record A'),
+                       versions.get(right.record_id, {}).get('label', 'Record B')) }}
+                </div>
+              {% endfor %}
+            </details>
+          </article>
+        {% endfor %}
+      </section>
+    {% endif %}
+
+    {% if review_candidates %}
+      <section class="review-candidates" aria-labelledby="review-candidates-title">
+        <div class="review-candidates-heading">
+          <div>
+            <p class="source-label">Safety review</p>
+            <h2 id="review-candidates-title">{{ review_candidates|length }} ambiguous match(es) kept separate.</h2>
+          </div>
+          <p>
+            These records were not placed in an automatic duplicate group. An
+            identical DOI can be incorrect or reused, while an identical title
+            without supporting metadata is not enough for deletion. You can still
+            decide to keep only one of them.
+          </p>
+        </div>
+        {% for candidate in review_candidates %}
+          <article class="card conflict-card">
+            <div class="card-header">
+              <div>
+                <p class="source-label">Manual review {{ loop.index }}</p>
+                <h3>{{ candidate.label }}</h3>
+              </div>
+              <span>{% if candidate.rule %}{{ m.rule_tag(rules, candidate.rule) }}{% endif %}<span class="status status-bad">Kept separate</span></span>
+            </div>
+            <p class="conflict-reason">{{ candidate.reason }}</p>
+            {% if candidate.signals %}
+              <div class="evidence-chips" aria-label="Matching evidence">
+                {% for signal in candidate.signals %}<span>{{ signal }}</span>{% endfor %}
+              </div>
+            {% endif %}
+            <div class="conflict-records">
+              {% for record_id in candidate.record_ids %}
+                <div>{{ m.record_summary(by_id[record_id], versions) }}</div>
+              {% endfor %}
+            </div>
+            {% if candidate.comparison and candidate.record_ids|length == 2 %}
+              <details class="match-evidence">
+                <summary>Field-by-field comparison</summary>
+                {{ m.comparison_table(candidate.comparison, by_id[candidate.record_ids[0]], by_id[candidate.record_ids[1]], compared_fields, field_labels) }}
+              </details>
+            {% endif %}
+            {{ m.pair_choice('review', candidate.candidate_id, candidate.record_ids, by_id, review_choices.get(candidate.candidate_id), 'Keep all (default)') }}
+          </article>
+        {% endfor %}
+      </section>
+    {% endif %}
+
+
+    {% if groups %}
       <section class="duplicates-heading">
         <div>
           <p class="eyebrow">Candidate matches</p>
           <h2>Choose one or more records to keep from each group.</h2>
         </div>
         <p>
-          Every group is supported by more than one bibliographic signal. The
-          recommendation favours a valid DOI, then more populated canonical and
-          raw fields. DOI metadata conflicts and related publications such as
-          corrections or commentaries are kept separate. A likely
-          protocol is labelled only when it appears beside a matching
-          non-protocol record, and is not recommended automatically. Conference
-          abstracts sharing a proceedings DOI are grouped only when title and
-          first author also agree very closely.
+          Every group is supported by more than one bibliographic signal and has a
+          rule label you can look up. All records in a group are the same
+          publication version. The recommendation favours a valid DOI, then more
+          populated canonical and raw fields; the reason is shown on each group.
         </p>
       </section>
 
@@ -226,15 +323,27 @@
             <div>
               <p class="source-label">Group {{ loop.index }} · {{ group.record_ids|length }} records</p>
               <h3>{{ group.methods|join(' + ') }}</h3>
+              <div class="rule-tags">
+                {% for rule_id in group.get('rules', []) %}{{ m.rule_tag(rules, rule_id) }}{% endfor %}
+              </div>
             </div>
             {% if 'Conference abstract title + first author' in group.methods %}
               <span class="status status-review">Review conference match</span>
+            {% elif group.get('cautions') %}
+              <span class="status status-review">Check publication type</span>
             {% elif 'Corroborated fuzzy title' in group.methods %}
               <span class="status status-review">Review fuzzy match</span>
             {% else %}
               <span class="status status-good">Corroborated match</span>
             {% endif %}
           </div>
+
+          {% if group.get('cautions') %}
+            <p class="group-caution">{{ group.cautions|join('. ') }}.</p>
+          {% endif %}
+          {% if group.get('recommendation_reason') %}
+            <p class="recommendation-reason">{{ group.recommendation_reason }}</p>
+          {% endif %}
 
           <p class="selection-help" id="selection-help-{{ group.group_id }}">
             Click to choose one record. Hold Ctrl/Cmd to add or remove individual
@@ -247,6 +356,7 @@
               {% set applied_ids = selected_by_group.get(group.group_id, []) %}
               {% set potential_protocol_ids = group.get('potential_protocol_record_ids', []) %}
               {% set conference_abstract_ids = group.get('conference_abstract_record_ids', []) %}
+              {% set info = group.get('information', {}).get(record_id) %}
               <label class="record-option {% if record_id == group.recommended_record_id %}recommended{% endif %}">
                 <input
                   type="checkbox"
@@ -259,19 +369,19 @@
                 <span class="record-body">
                   <span class="record-topline">
                     <strong>{{ record.title or '(No mapped title)' }}</strong>
-                    {% if record_id in potential_protocol_ids or record_id in conference_abstract_ids or record_id == group.recommended_record_id %}
-                      <span class="record-badges">
-                        {% if record_id in potential_protocol_ids %}
-                          <span class="protocol-flag">Potential protocol</span>
-                        {% endif %}
-                        {% if record_id in conference_abstract_ids %}
-                          <span class="conference-flag">Conference abstract</span>
-                        {% endif %}
-                        {% if record_id == group.recommended_record_id %}
-                          <span class="recommendation">Recommended</span>
-                        {% endif %}
-                      </span>
-                    {% endif %}
+                    <span class="record-badges">
+                      {% if record_id in potential_protocol_ids %}
+                        <span class="protocol-flag">Potential protocol</span>
+                      {% endif %}
+                      {% if record_id in conference_abstract_ids %}
+                        <span class="conference-flag">Conference abstract</span>
+                      {% elif versions.get(record_id, {}).get('kind') not in (none, 'article', 'unspecified') %}
+                        {{ m.version_badge(versions, record_id) }}
+                      {% endif %}
+                      {% if record_id == group.recommended_record_id %}
+                        <span class="recommendation">Recommended</span>
+                      {% endif %}
+                    </span>
                   </span>
                   <span class="record-meta">
                     {{ record.first_author or 'No author' }} ·
@@ -290,6 +400,7 @@
                     {{ record.source_filename }}
                     {% if record.source_sheet %} / {{ record.source_sheet }}{% endif %}
                     · source row {{ record.source_row }}
+                    {% if info %} · {{ info.core_fields }}/12 fields{% if info.has_doi %} · DOI{% endif %}{% endif %}
                   </span>
                 </span>
               </label>
@@ -299,22 +410,30 @@
           <details class="match-evidence">
             <summary>Why these records were grouped</summary>
             {% for edge in group.edges %}
+              {% set left = by_id[edge.left] %}
+              {% set right = by_id[edge.right] %}
               <div class="evidence-row">
-                <strong>{{ edge.method }}</strong>
+                <strong>{% if edge.rule %}{{ m.rule_tag(rules, edge.rule) }}{% else %}{{ edge.method }}{% endif %}</strong>
+                <small>{{ left.source_filename }} row {{ left.source_row }} ↔ {{ right.source_filename }} row {{ right.source_row }}</small>
                 <div class="evidence-chips">
                   {% for signal in edge.signals %}<span>{{ signal }}</span>{% endfor %}
                 </div>
                 <small>{{ edge.reason }}</small>
+                {{ m.comparison_table(edge.get('comparison'), left, right, compared_fields, field_labels) }}
               </div>
             {% endfor %}
           </details>
         </section>
       {% endfor %}
+    {% endif %}
 
       <div class="sticky-actions">
         <div>
-          <strong>{% if deduplicated is not none %}Update duplicate decisions{% else %}Apply duplicate decisions{% endif %}</strong>
-          <span>Manual mode keeps every selected record. Automatic mode keeps each recommendation.</span>
+          <strong>{% if deduplicated is not none %}Update decisions{% else %}Apply decisions{% endif %}</strong>
+          <span>
+            Excluded versions and review-item choices apply in both modes. Manual mode keeps every selected group record; automatic mode keeps
+            each group's recommendation.
+          </span>
         </div>
         <div class="button-row">
           <button class="button button-secondary" name="mode" value="manual" type="submit">
@@ -331,16 +450,58 @@
         </div>
       </details>
     {% endif %}
-  {% else %}
+  {% endif %}
+
+  {% if not groups %}
     <section class="card empty-state">
       <div class="empty-icon">✓</div>
       <h2>No corroborated duplicate groups were found.</h2>
       <p>
         The master dataset is already the final dataset under the current automatic
-        rules. Any ambiguous pairs are retained in the safety-review section above.
+        rules. Any ambiguous pairs or related publications are listed above.
       </p>
     </section>
   {% endif %}
+
+  {% if separated_pairs %}
+    <details class="card separated-pairs">
+      <summary>
+        <strong>{{ separated_pairs_total }} similar pair(s) were compared and kept separate</strong>
+        <small>Near misses, with the rule that kept them apart.{% if separated_pairs_total > separated_pairs|length %} The first {{ separated_pairs|length }} are shown; all are in the audit JSON.{% endif %}</small>
+      </summary>
+      <div class="table-scroll">
+        <table class="audit-table">
+          <thead>
+            <tr><th>Rule</th><th>Record A</th><th>Record B</th><th>Title</th><th>Why kept separate</th></tr>
+          </thead>
+          <tbody>
+            {% for pair in separated_pairs[:500] %}
+              {% set left = by_id[pair.record_ids[0]] %}
+              {% set right = by_id[pair.record_ids[1]] %}
+              <tr>
+                <td>{{ m.rule_tag(rules, pair.rule) }}</td>
+                <td>{{ left.title|truncate(90) }}<br><small>{{ left.source_filename }} row {{ left.source_row }} · {{ left.doi or 'no DOI' }}</small></td>
+                <td>{{ right.title|truncate(90) }}<br><small>{{ right.source_filename }} row {{ right.source_row }} · {{ right.doi or 'no DOI' }}</small></td>
+                <td>{{ pair.title_score|round|int }}%</td>
+                <td>{{ pair.reason }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  {% endif %}
+
+  <section class="privacy-note">
+    <form action="{{ url_for('delete_job', job_id=job_id) }}" method="post">
+      <p>
+        Your uploads and results are stored on the server only for this job
+        {% if ttl_hours %}and are deleted automatically after {{ ttl_hours|round|int }} hours{% endif %}.
+        Download what you need first.
+      </p>
+      <button class="button button-small button-secondary" type="submit">Delete this job now</button>
+    </form>
+  </section>
 {% endblock %}
 
 {% block scripts %}

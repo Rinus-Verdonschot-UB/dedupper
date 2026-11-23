@@ -1126,3 +1126,81 @@ tbody th small {
     padding: 1rem;
   }
 }
+
+/* ---- v0.8.0 transparency components ---- */
+.site-nav { margin-left: auto; }
+.site-nav a { color: #fff; font-weight: 600; text-decoration: none; }
+.site-nav a:hover, .site-nav a:focus { text-decoration: underline; }
+.version-badge, .version-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: var(--navy-soft);
+  color: var(--navy);
+  border: 1px solid var(--line);
+}
+.version-preprint { background: #efe6f7; color: #4c2a73; }
+.version-conference_abstract, .version-conference_paper { background: var(--blue-soft); color: var(--blue-dark); }
+.version-protocol, .version-registry { background: var(--orange-soft); color: var(--orange-dark); }
+.version-correction, .version-retraction, .version-commentary, .version-response, .version-expression-of-concern { background: var(--red-soft); color: var(--red); }
+.version-thesis { background: var(--green-soft); color: var(--green); }
+.version-evidence { display: block; font-size: 0.82rem; color: var(--muted); font-style: italic; }
+.version-summary .evidence-chips { margin-top: 12px; }
+.rule-tag {
+  display: inline-block;
+  margin: 2px 6px 2px 0;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: var(--navy);
+  color: #fff;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.rule-tag:hover, .rule-tag:focus { background: var(--blue-dark); }
+.rule-tags { margin-top: 6px; }
+.comparison-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.86rem; }
+.comparison-table th, .comparison-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.comparison-table thead th { background: var(--navy-soft); }
+.cmp-status { font-weight: 700; text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.03em; }
+.cmp-match .cmp-status { color: var(--green); }
+.cmp-compatible .cmp-status { color: var(--blue-dark); }
+.cmp-differs .cmp-status, .cmp-missing .cmp-status { color: var(--muted); }
+.cmp-conflict .cmp-status { color: var(--red); }
+.cmp-conflict { background: var(--red-soft); }
+.related-section { margin: 32px 0; }
+.related-card { border-left: 5px solid var(--blue); }
+.pair-choice { border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin-top: 14px; }
+.pair-choice legend { font-weight: 700; padding: 0 4px; }
+.pair-choice label { display: block; margin: 4px 0; cursor: pointer; }
+.group-caution { background: var(--orange-soft); color: var(--orange-dark); padding: 8px 12px; border-radius: 6px; font-weight: 600; }
+.recommendation-reason { color: var(--muted); font-size: 0.9rem; }
+.metric-card-info { border-top: 4px solid var(--blue); }
+.separated-pairs summary { cursor: pointer; display: flex; flex-direction: column; gap: 4px; }
+.separated-pairs table { margin-top: 12px; }
+.privacy-note { margin: 32px 0 8px; color: var(--muted); }
+.privacy-note form { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.privacy-note p { margin: 0; }
+.completion-links a { color: inherit; font-weight: 700; }
+.plain-list { padding-left: 1.2rem; }
+.outcome { font-weight: 700; text-transform: uppercase; font-size: 0.75rem; }
+.outcome-duplicate { color: var(--green); }
+.outcome-related { color: var(--blue-dark); }
+.outcome-review { color: var(--orange-dark); }
+.outcome-separate { color: var(--muted); }
+.rules-table tr:target { background: var(--orange-soft); }
+.family-units { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.8rem; margin-top: 1rem; }
+.family-unit { display: grid; gap: 0.35rem; align-content: start; padding: 0.9rem; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); }
+.family-unit span, .family-unit small { color: var(--muted); }
+.family-unit code { overflow-wrap: anywhere; }
+.family-unit .version-badge { color: inherit; }
+.group-ref { font-size: 0.78rem; margin-left: 6px; }
+.exclude-choice { margin-top: 6px; font-size: 0.88rem; cursor: pointer; color: var(--ink); }
+.conflict-records > div { min-width: 0; }
+@media (max-width: 640px) {
+  .conflict-records { grid-template-columns: minmax(0, 1fr); }
+  .rule-tag { white-space: normal; }
+}

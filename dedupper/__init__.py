@@ -31,12 +31,25 @@ from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.exceptions import NotFound
 from werkzeug.utils import secure_filename
 
+from .decisions import (
+    ANNOTATION_FIELDS,
+    DECISION_LOG_FIELDS,
+    build_annotations,
+    decision_log_rows,
+    removal_reasons,
+)
 from .dedup import (
-    analyze_duplicates,
+    COMPARED_FIELDS,
+    FIELD_LABELS,
+    analyze_records,
     apply_group_selections,
+    apply_family_decisions,
+    apply_pair_decisions,
     conference_abstract_report,
     enrich_retained_records,
 )
+from .rules import RULES, settings_from_env
+from .versions import VERSION_LABELS
 from .mapping import column_profiles, infer_mapping
 from .models import CANONICAL_FIELDS, SourceTable
 from .parsers import (
@@ -48,6 +61,7 @@ from .parsers import (
 )
 from .storage import JobStore
 
+__version__ = "0.8.0"
 
 EXPORT_FIELDS = [
     "record_id",
@@ -70,6 +84,7 @@ EXPORT_FIELDS = [
     "enrichment_audit_json",
     "parse_warnings",
     "raw_fields_json",
+    *ANNOTATION_FIELDS,
 ]
 
 
@@ -82,14 +97,26 @@ class JobUnavailable(NotFound):
 
 def create_app(test_config: dict[str, Any] | None = None) -> Flask:
     app = Flask(__name__, instance_relative_config=True)
+    max_upload_mb = _env_number("DEDUPPER_MAX_UPLOAD_MB", 100)
     app.config.from_mapping(
         SECRET_KEY=os.environ.get("DEDUPPER_SECRET_KEY"),
         SECRET_KEY_FILE=(
             os.environ.get("DEDUPPER_SECRET_KEY_FILE")
             or str(Path(app.instance_path) / ".secret-key")
         ),
-        MAX_CONTENT_LENGTH=100 * 1024 * 1024,
-        JOB_ROOT=str(Path(app.instance_path) / "jobs"),
+        MAX_CONTENT_LENGTH=int(max_upload_mb * 1024 * 1024),
+        JOB_ROOT=(
+            os.environ.get("DEDUPPER_JOB_ROOT")
+            or str(Path(app.instance_path) / "jobs")
+        ),
+        # Uploaded bibliographic data is working data: delete jobs after this
+        # many hours (0 disables automatic deletion).
+        JOB_TTL_HOURS=_env_number("DEDUPPER_JOB_TTL_HOURS", 24),
+        MATCH_SETTINGS=settings_from_env(),
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE="Lax",
+        SESSION_COOKIE_SECURE=os.environ.get("DEDUPPER_SECURE_COOKIES", "").casefold()
+        in {"1", "true", "yes"},
     )
     if test_config:
         app.config.update(test_config)
@@ -101,12 +128,28 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
     store = JobStore(app.config["JOB_ROOT"])
     app.extensions["job_store"] = store
 
+    @app.context_processor
+    def inject_globals() -> dict[str, Any]:
+        return {"app_version": __version__}
+
+    @app.after_request
+    def security_headers(response: Response) -> Response:
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "same-origin")
+        if request.path.startswith("/jobs/"):
+            response.headers.setdefault("Cache-Control", "no-store")
+        return response
+
     @app.errorhandler(RequestEntityTooLarge)
     def upload_too_large(_: RequestEntityTooLarge) -> tuple[str, int]:
         return (
             render_template(
                 "error.html",
-                message="The combined upload is larger than the 100 MB limit.",
+                message=(
+                    "The combined upload is larger than the "
+                    f"{max_upload_mb:g} MB limit."
+                ),
             ),
             413,
         )
@@ -120,6 +163,16 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
         return render_template(
             "index.html",
             supported=", ".join(sorted(SUPPORTED_EXTENSIONS)),
+            ttl_hours=app.config["JOB_TTL_HOURS"],
+        )
+
+    @app.get("/rules")
+    def rules_page() -> str:
+        return render_template(
+            "rules.html",
+            rules=RULES,
+            settings=app.config["MATCH_SETTINGS"],
+            version_labels=VERSION_LABELS,
         )
 
     @app.post("/upload")
@@ -142,6 +195,7 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
             flash(f"Unsupported file type: {', '.join(invalid)}", "error")
             return redirect(url_for("index"))
 
+        store.purge_expired(app.config["JOB_TTL_HOURS"])
         job_id = uuid.uuid4().hex
         job_dir = store.create(job_id)
         manifest: dict[str, Any] = {
@@ -150,6 +204,8 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
             "tables": [],
             "direct_records": [],
             "stage": "mapping",
+            "created_at": time.time(),
+            "app_version": __version__,
         }
         used_names: set[str] = set()
         try:
@@ -187,7 +243,7 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
         session["job_id"] = job_id
         if manifest["tables"]:
             return redirect(url_for("mapping_review", job_id=job_id))
-        _finalize_master(store, job_id, manifest, {})
+        _finalize_master(store, job_id, manifest, {}, app.config["MATCH_SETTINGS"])
         return redirect(url_for("results", job_id=job_id))
 
     @app.get("/jobs/<job_id>/mapping")
@@ -273,7 +329,7 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
                 )
                 return redirect(url_for("mapping_review", job_id=job_id))
             mappings[table.table_id] = table_mapping
-        _finalize_master(store, job_id, manifest, mappings)
+        _finalize_master(store, job_id, manifest, mappings, app.config["MATCH_SETTINGS"])
         return redirect(url_for("results", job_id=job_id))
 
     @app.get("/jobs/<job_id>/results")
@@ -288,6 +344,14 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
         )
         deduplicated = store.load_json(job_id, "deduplicated")
         deduplication = store.load_json(job_id, "deduplication_report")
+        related_links = store.load_json(job_id, "related_links", [])
+        related_families = store.load_json(job_id, "related_families", [])
+        separated_pairs = store.load_json(job_id, "separated_pairs", [])
+        versions = store.load_json(job_id, "versions", {})
+        analysis_meta = store.load_json(job_id, "analysis_meta", {})
+        version_counts: dict[str, int] = defaultdict(int)
+        for version in versions.values():
+            version_counts[version.get("kind", "unspecified")] += 1
         selected_by_group: dict[str, list[str]] = {}
         if deduplication:
             for group_id, selected in deduplication.get("selections", {}).items():
@@ -309,6 +373,21 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
             deduplication=deduplication,
             selected_by_group=selected_by_group,
             total_duplicate_records=sum(len(group["record_ids"]) for group in groups),
+            related_links=related_links,
+            related_families=related_families,
+            separated_pairs=separated_pairs,
+            separated_pairs_total=analysis_meta.get(
+                "separated_pairs_total", len(separated_pairs)
+            ),
+            versions=versions,
+            version_counts=dict(version_counts),
+            version_labels=VERSION_LABELS,
+            rules=RULES,
+            compared_fields=COMPARED_FIELDS,
+            field_labels=FIELD_LABELS,
+            review_choices=(deduplication or {}).get("review_choices", {}),
+            family_choices=(deduplication or {}).get("family_choices", {}),
+            ttl_hours=app.config["JOB_TTL_HOURS"],
         )
 
     @app.post("/jobs/<job_id>/deduplicate")
@@ -323,25 +402,55 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
                 selections[group["group_id"]] = request.form.getlist(
                     f"keep.{group['group_id']}"
                 )
+        review_candidates = store.load_json(job_id, "review_candidates", [])
+        families = store.load_json(job_id, "related_families", [])
+        review_choices = {
+            item["candidate_id"]: request.form.get(f"review.{item['candidate_id']}", "all")
+            for item in review_candidates
+        }
+        family_choices = {
+            family["family_id"]: request.form.getlist(f"exclude.{family['family_id']}")
+            for family in families
+        }
         try:
             kept, removed, final_selections = apply_group_selections(
                 records, groups, selections
             )
+            enriched, enrichment_audit = enrich_retained_records(
+                kept, records, groups, final_selections
+            )
+            enriched, removed, applied_reviews = apply_pair_decisions(
+                enriched, removed, review_candidates, review_choices, "candidate_id"
+            )
+            enriched, removed, applied_families = apply_family_decisions(
+                enriched, removed, families, family_choices
+            )
         except ValueError as exc:
             flash(str(exc), "error")
             return redirect(url_for("results", job_id=job_id))
-        enriched, enrichment_audit = enrich_retained_records(
-            kept, records, groups, final_selections
-        )
+        removed_ids = {record["record_id"] for record in removed}
         store.save_json(job_id, "deduplicated", enriched)
         store.save_json(
             job_id,
             "deduplication_report",
             {
+                "mode": mode,
+                "applied_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
                 "input_records": len(records),
                 "output_records": len(enriched),
                 "removed_records": len(removed),
                 "selections": final_selections,
+                "review_choices": applied_reviews,
+                "family_choices": applied_families,
+                "removals": removal_reasons(
+                    groups,
+                    final_selections,
+                    review_candidates,
+                    applied_reviews,
+                    families,
+                    applied_families,
+                    removed_ids,
+                ),
                 "enrichment": enrichment_audit,
             },
         )
@@ -360,24 +469,53 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
         export_format = request.args.get("format", "csv").casefold()
         if export_format not in {"csv", "xlsx", "ris"}:
             abort(400)
+        master = store.load_json(job_id, "master", [])
+        annotations = build_annotations(
+            master, _load_analysis(store, job_id), store.load_json(job_id, "deduplication_report")
+        )
         if dataset == "master":
-            records = store.load_json(job_id, "master", [])
+            records = master
             basename = "dedupper_master_with_duplicates"
         elif dataset == "deduplicated":
             records = store.load_json(job_id, "deduplicated")
             if records is None:
                 abort(404)
             basename = "dedupper_deduplicated"
+        elif dataset == "removed":
+            kept_ids = {
+                record["record_id"]
+                for record in store.load_json(job_id, "deduplicated") or abort(404)
+            }
+            records = [record for record in master if record["record_id"] not in kept_ids]
+            basename = "dedupper_removed_records"
+        elif dataset == "decisions":
+            rows = decision_log_rows(master, annotations)
+            if export_format == "ris":
+                abort(400)
+            if export_format == "xlsx":
+                return send_file(
+                    _rows_to_xlsx(rows, DECISION_LOG_FIELDS, "Decisions"),
+                    mimetype=XLSX_MIMETYPE,
+                    as_attachment=True,
+                    download_name="dedupper_decision_log.xlsx",
+                )
+            return Response(
+                _rows_to_csv(rows, DECISION_LOG_FIELDS),
+                mimetype="text/csv",
+                headers={
+                    "Content-Disposition": 'attachment; filename="dedupper_decision_log.csv"'
+                },
+            )
         else:
             abort(404)
+        records = [
+            {**record, **annotations.get(record["record_id"], {})} for record in records
+        ]
 
         if export_format == "xlsx":
             return send_file(
                 _records_to_xlsx(records),
-                mimetype=(
-                    "application/vnd.openxmlformats-officedocument."
-                    "spreadsheetml.sheet"
-                ),
+                mimetype=XLSX_MIMETYPE,
                 as_attachment=True,
                 download_name=f"{basename}.xlsx",
             )
@@ -403,9 +541,16 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
     def download_audit(job_id: str) -> Response:
         _owned_manifest(store, job_id)
         payload = {
+            "dedupper_version": __version__,
+            "analysis": store.load_json(job_id, "analysis_meta", {}),
+            "rules": RULES,
             "reports": store.load_json(job_id, "reports", []),
+            "publication_versions": store.load_json(job_id, "versions", {}),
             "duplicate_groups": store.load_json(job_id, "groups", []),
             "review_candidates": store.load_json(job_id, "review_candidates", []),
+            "related_links": store.load_json(job_id, "related_links", []),
+            "related_families": store.load_json(job_id, "related_families", []),
+            "separated_pairs": store.load_json(job_id, "separated_pairs", []),
             "conference_abstract_report": store.load_json(
                 job_id, "conference_abstract_report", {}
             ),
@@ -421,12 +566,43 @@ def create_app(test_config: dict[str, Any] | None = None) -> Flask:
             download_name="dedupper_audit.json",
         )
 
+    @app.post("/jobs/<job_id>/delete")
+    def delete_job(job_id: str) -> Response:
+        _owned_manifest(store, job_id)
+        store.clean(job_id)
+        session.pop("job_id", None)
+        flash("Your uploaded files and results were deleted from the server.", "success")
+        return redirect(url_for("index"))
+
     @app.get("/health")
     def health() -> dict[str, str]:
-        return {"status": "ok"}
+        return {"status": "ok", "version": __version__}
 
     app.jinja_env.globals["mapping_name"] = _mapping_name
     return app
+
+
+XLSX_MIMETYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def _env_number(name: str, default: float) -> float:
+    value = os.environ.get(name, "").strip()
+    if not value:
+        return default
+    try:
+        return float(value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a number, got {value!r}.") from exc
+
+
+def _load_analysis(store: JobStore, job_id: str) -> dict[str, Any]:
+    return {
+        "groups": store.load_json(job_id, "groups", []),
+        "review_candidates": store.load_json(job_id, "review_candidates", []),
+        "related_links": store.load_json(job_id, "related_links", []),
+        "related_families": store.load_json(job_id, "related_families", []),
+        "versions": store.load_json(job_id, "versions", {}),
+    }
 
 
 def _owned_manifest(store: JobStore, job_id: str) -> dict[str, Any]:
@@ -487,6 +663,7 @@ def _finalize_master(
     job_id: str,
     manifest: dict[str, Any],
     mappings: dict[str, dict[str, str | None]],
+    settings: dict[str, float] | None = None,
 ) -> None:
     records = list(manifest["direct_records"])
     report_data: dict[str, dict[str, Any]] = {}
@@ -536,7 +713,9 @@ def _finalize_master(
             for warning in table.warnings
         )
 
-    groups, review_candidates = analyze_duplicates(records)
+    analysis = analyze_records(records, settings=settings)
+    groups = analysis["groups"]
+    review_candidates = analysis["review_candidates"]
     conference_report = conference_abstract_report(records, groups)
     warning_counts: dict[str, int] = defaultdict(int)
     for record in records:
@@ -552,6 +731,20 @@ def _finalize_master(
     store.save_json(job_id, "groups", groups)
     store.save_json(job_id, "review_candidates", review_candidates)
     store.save_json(job_id, "conference_abstract_report", conference_report)
+    store.save_json(job_id, "related_links", analysis["related_links"])
+    store.save_json(job_id, "related_families", analysis["related_families"])
+    store.save_json(job_id, "separated_pairs", analysis["separated_pairs"])
+    store.save_json(job_id, "versions", analysis["versions"])
+    store.save_json(
+        job_id,
+        "analysis_meta",
+        {
+            "dedupper_version": __version__,
+            "settings": analysis["settings"],
+            "separated_pairs_total": analysis["separated_pairs_total"],
+            "separated_pairs_stored": len(analysis["separated_pairs"]),
+        },
+    )
 
 
 def _records_to_csv(records: list[dict[str, Any]]) -> str:
@@ -561,6 +754,40 @@ def _records_to_csv(records: list[dict[str, Any]]) -> str:
     for record in records:
         writer.writerow(_record_to_export_row(record))
     return "\ufeff" + output.getvalue()
+
+
+def _rows_to_csv(rows: list[dict[str, Any]], fields: list[str]) -> str:
+    output = io.StringIO(newline="")
+    writer = csv.DictWriter(output, fieldnames=fields, extrasaction="ignore")
+    writer.writeheader()
+    writer.writerows(rows)
+    return "\ufeff" + output.getvalue()
+
+
+def _rows_to_xlsx(rows: list[dict[str, Any]], fields: list[str], title: str) -> io.BytesIO:
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = title
+    sheet.freeze_panes = "A2"
+    sheet.auto_filter.ref = f"A1:{get_column_letter(len(fields))}{max(len(rows) + 1, 1)}"
+    header_fill = PatternFill("solid", fgColor="001C3D")
+    for column, field in enumerate(fields, start=1):
+        cell = sheet.cell(row=1, column=column, value=field)
+        cell.font = Font(color="FFFFFF", bold=True)
+        cell.fill = header_fill
+        sheet.column_dimensions[get_column_letter(column)].width = (
+            60 if field in {"title", "dedup_reason", "related_records"} else 22
+        )
+    for row_index, row in enumerate(rows, start=2):
+        for column, field in enumerate(fields, start=1):
+            value = row.get(field, "")
+            cell = sheet.cell(row=row_index, column=column, value="" if value is None else str(value))
+            cell.data_type = "s"
+            cell.alignment = Alignment(vertical="top", wrap_text=field in {"title", "dedup_reason", "related_records"})
+    output = io.BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    return output
 
 
 def _record_to_export_row(record: dict[str, Any]) -> dict[str, Any]:
@@ -614,6 +841,8 @@ def _records_to_xlsx(records: list[dict[str, Any]]) -> io.BytesIO:
                     "source_provenance_json",
                     "enrichment_audit_json",
                     "raw_fields_json",
+                    "dedup_reason",
+                    "related_records",
                 },
             )
 
@@ -638,6 +867,13 @@ def _records_to_xlsx(records: list[dict[str, Any]]) -> io.BytesIO:
         "enrichment_audit_json": 70,
         "parse_warnings": 34,
         "raw_fields_json": 85,
+        "publication_version": 24,
+        "publication_version_evidence": 40,
+        "duplicate_group": 12,
+        "dedup_status": 16,
+        "dedup_reason": 60,
+        "related_records": 60,
+        "review_items": 30,
     }
     for index, field in enumerate(EXPORT_FIELDS, start=1):
         sheet.column_dimensions[get_column_letter(index)].width = field_widths.get(
@@ -671,6 +907,7 @@ def _records_to_ris(records: list[dict[str, Any]]) -> str:
         output.extend(_ris_field("PT", record.get("publication_type", "")))
         output.extend(_ris_field("AB", record.get("abstract", "")))
         output.extend(_ris_field("N1", _provenance_note(record)))
+        output.extend(_ris_field("N1", _dedupper_note(record)))
         output.append("ER  -")
         output.append("")
     return "\r\n".join(output)
@@ -741,6 +978,20 @@ def _provenance_note(record: dict[str, Any]) -> str:
         if source:
             sources.append(source)
     return "Dedupper merged sources: " + "; ".join(sources) if sources else ""
+
+
+def _dedupper_note(record: dict[str, Any]) -> str:
+    parts = []
+    if record.get("publication_version") and record.get("publication_version_evidence"):
+        parts.append(
+            f"version: {record['publication_version']} "
+            f"({record['publication_version_evidence']})"
+        )
+    if record.get("dedup_status"):
+        parts.append(f"status: {record['dedup_status']} – {record.get('dedup_reason', '')}")
+    if record.get("related_records"):
+        parts.append(f"related: {record['related_records']}")
+    return "Dedupper " + "; ".join(parts) if parts else ""
 
 
 def _ris_field(tag: str, value: Any) -> list[str]:

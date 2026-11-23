@@ -1,0 +1,9 @@
+.venv/
+.deps/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+instance/jobs/*
+!instance/jobs/.gitkeep
+
+instance/.secret-key

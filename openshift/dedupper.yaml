@@ -1,0 +1,111 @@
+# Dedupper on DSRI / OpenShift.
+#
+#   oc project <your-project>
+#   oc create secret generic dedupper-secret \
+#       --from-literal=DEDUPPER_SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
+#   oc apply -f openshift/dedupper.yaml
+#
+# Replace the image below with the image you built (see DEPLOY_DSRI.md), or
+# remove the Deployment and use `oc new-app` with the Python S2I builder.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dedupper-data
+  labels: {app: dedupper}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dedupper
+  labels: {app: dedupper}
+spec:
+  # Jobs live on one volume; keep a single replica (see DEPLOY_DSRI.md).
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app: dedupper}
+  template:
+    metadata:
+      labels: {app: dedupper}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: dedupper
+          image: image-registry.openshift-image-registry.svc:5000/REPLACE-PROJECT/dedupper:0.8.0
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "8080"
+            - name: DEDUPPER_JOB_ROOT
+              value: /opt/app-root/data/jobs
+            - name: DEDUPPER_SECRET_KEY_FILE
+              value: /opt/app-root/data/.secret-key
+            - name: DEDUPPER_JOB_TTL_HOURS
+              value: "24"
+            - name: DEDUPPER_MAX_UPLOAD_MB
+              value: "100"
+            - name: DEDUPPER_SECURE_COOKIES
+              value: "true"
+            - name: GUNICORN_WORKERS
+              value: "2"
+            - name: DEDUPPER_SECRET_KEY
+              valueFrom:
+                secretKeyRef: {name: dedupper-secret, key: DEDUPPER_SECRET_KEY}
+          volumeMounts:
+            - name: data
+              mountPath: /opt/app-root/data
+          readinessProbe:
+            httpGet: {path: /health, port: 8080}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health, port: 8080}
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          resources:
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {cpu: "2", memory: 2Gi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: dedupper-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dedupper
+  labels: {app: dedupper}
+spec:
+  selector: {app: dedupper}
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: dedupper
+  labels: {app: dedupper}
+  annotations:
+    # Analysis of large uploads runs inside the request.
+    haproxy.router.openshift.io/timeout: 300s
+spec:
+  to: {kind: Service, name: dedupper}
+  port: {targetPort: http}
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

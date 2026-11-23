@@ -425,7 +425,7 @@ def test_manual_dedup_keeps_multiple_records_and_collapses_review(
     assert results.data.count(b"checked") == 2
 
 
-def test_protocol_label_is_rendered_and_non_protocol_is_recommended(
+def test_protocol_is_shown_as_related_and_never_removed_automatically(
     tmp_path: Path,
 ) -> None:
     app = create_app(
@@ -458,12 +458,21 @@ def test_protocol_label_is_rendered_and_non_protocol_is_recommended(
     )
 
     assert response.status_code == 200
-    assert response.data.count(b"Potential protocol") == 1
-    assert response.data.count(b"Recommended") == 1
+    # v0.8.0: shown as a related publication, never as a duplicate.
+    assert b"Protocol and results publication" in response.data
+    assert b"title contains a protocol marker" in response.data
 
     with client.session_transaction() as flask_session:
         job_id = flask_session["job_id"]
     store = app.extensions["job_store"]
-    group = store.load_json(job_id, "groups")[0]
-    protocol_id = group["potential_protocol_record_ids"][0]
-    assert group["recommended_record_id"] != protocol_id
+    assert store.load_json(job_id, "groups") == []
+    links = store.load_json(job_id, "related_links")
+    assert len(links) == 1
+
+    response = client.post(
+        f"/jobs/{job_id}/deduplicate",
+        data={"mode": "automatic"},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert len(store.load_json(job_id, "deduplicated")) == 2

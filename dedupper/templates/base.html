@@ -20,6 +20,7 @@
           <small>University Library · Scientific record deduplication</small>
         </span>
       </a>
+      <nav class="site-nav"><a href="{{ url_for('rules_page') }}">How matching works</a></nav>
     </header>
 
     <main class="page-shell">
@@ -36,7 +37,7 @@
     </main>
 
     <footer>
-      Dedupper · Maastricht University Library · Source rows remain traceable through every step
+      Dedupper {{ app_version }} · Maastricht University Library · Source rows remain traceable through every step
     </footer>
     {% block scripts %}{% endblock %}
   </body>

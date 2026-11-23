@@ -1,0 +1,77 @@
+{% macro version_badge(versions, record_id, show_standard=false) %}
+  {%- set version = versions.get(record_id, {}) -%}
+  {%- if version and (show_standard or version.kind not in ('article', 'unspecified')) -%}
+    <span class="version-badge version-{{ version.kind|replace(' ', '-') }}"
+          title="{{ version.evidence|join('; ') if version.evidence else 'No publication-type evidence' }}">
+      {{ version.label }}
+    </span>
+  {%- endif -%}
+{% endmacro %}
+
+{% macro version_evidence(versions, record_id) %}
+  {%- set version = versions.get(record_id, {}) -%}
+  {%- if version and version.evidence -%}
+    <span class="version-evidence">Why {{ version.label|lower }}: {{ version.evidence|join('; ') }}</span>
+  {%- endif -%}
+{% endmacro %}
+
+{% macro rule_tag(rules, rule_id) %}
+  <a class="rule-tag" href="{{ url_for('rules_page') }}#rule-{{ rule_id }}"
+     title="{{ rules.get(rule_id, {}).get('description', '') }}">{{ rule_id }} · {{ rules.get(rule_id, {}).get('name', rule_id) }}</a>
+{% endmacro %}
+
+{% macro comparison_table(comparison, left, right, compared_fields, field_labels, left_label='Record A', right_label='Record B') %}
+  {% if comparison %}
+    <div class="table-scroll">
+      <table class="comparison-table">
+        <thead>
+          <tr>
+            <th scope="col">Field</th>
+            <th scope="col">{{ left_label }}</th>
+            <th scope="col">{{ right_label }}</th>
+            <th scope="col">Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for field in compared_fields %}
+            {% set row = comparison.get(field) %}
+            {% if row and row.status != 'absent' %}
+              <tr class="cmp-{{ row.status }}">
+                <th scope="row">{{ field_labels.get(field, field) }}</th>
+                <td>{{ (left.get(field, '') or '—')|truncate(160) }}</td>
+                <td>{{ (right.get(field, '') or '—')|truncate(160) }}</td>
+                <td><span class="cmp-status">{{ row.status }}</span> <small>{{ row.note }}</small></td>
+              </tr>
+            {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+{% endmacro %}
+
+{% macro record_summary(record, versions) %}
+  <strong>{{ record.title or '(No mapped title)' }}</strong>
+  <span class="record-badges">{{ version_badge(versions, record.record_id) }}</span>
+  <span>{{ record.first_author or 'No author' }} · {{ record.year or 'No year' }} · {{ record.journal or 'No journal' }}</span>
+  <code>{{ record.doi or 'No DOI' }}</code>
+  {{ version_evidence(versions, record.record_id) }}
+  <small>{{ record.source_filename }}{% if record.source_sheet %} / {{ record.source_sheet }}{% endif %} · source row {{ record.source_row }}</small>
+{% endmacro %}
+
+{% macro pair_choice(prefix, item_id, record_ids, by_id, current, default_text) %}
+  <fieldset class="pair-choice">
+    <legend>Your decision</legend>
+    <label>
+      <input type="radio" name="{{ prefix }}.{{ item_id }}" value="all" {% if not current %}checked{% endif %}>
+      {{ default_text }}
+    </label>
+    {% for record_id in record_ids %}
+      {% set record = by_id[record_id] %}
+      <label>
+        <input type="radio" name="{{ prefix }}.{{ item_id }}" value="{{ record_id }}" {% if current == record_id %}checked{% endif %}>
+        Keep only {{ record.source_filename }} row {{ record.source_row }}{% if record.doi %} ({{ record.doi }}){% endif %} and remove the other{% if record_ids|length > 2 %}s{% endif %}
+      </label>
+    {% endfor %}
+  </fieldset>
+{% endmacro %}

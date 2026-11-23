@@ -18,7 +18,9 @@ from .doi import DOI_RE, extract_doi
 from .models import ArticleRecord, SourceTable
 
 
-SUPPORTED_EXTENSIONS = {".ris", ".txt", ".csv", ".tsv", ".xlsx", ".xls"}
+SUPPORTED_EXTENSIONS = {".ris", ".txt", ".nbib", ".csv", ".tsv", ".xlsx", ".xls"}
+MEDLINE_TAG_RE = re.compile(r"^([A-Z][A-Z0-9]{1,3})\s*-\s?(.*)$")
+MEDLINE_START_RE = re.compile(r"(?m)^PMID-\s*\d+")
 RIS_TAG_RE = re.compile(r"^\s*([A-Za-z0-9]{2,4})\s*-\s?(.*)$")
 YEAR_RE = re.compile(r"(?<!\d)(1[5-9]\d{2}|20\d{2}|21\d{2})(?!\d)")
 PUBMED_RECORD_START_RE = re.compile(
@@ -87,6 +89,15 @@ def parse_uploaded_file(path: Path, file_id: str) -> dict[str, Any]:
         )
     if extension == ".ris":
         records, diagnostics = parse_ris(path.read_bytes(), file_id, path.name)
+        return {
+            "kind": "records",
+            "records": [record.to_dict() for record in records],
+            "diagnostics": diagnostics,
+        }
+    if extension == ".nbib" or (
+        extension == ".txt" and looks_like_medline(path.read_bytes())
+    ):
+        records, diagnostics = parse_medline(path.read_bytes(), file_id, path.name)
         return {
             "kind": "records",
             "records": [record.to_dict() for record in records],
@@ -329,6 +340,127 @@ def _ris_to_record(
         issn=issn,
         isbn=isbn,
         abstract=abstract,
+        publication_type=publication_type,
+        raw_fields={key: list(values) for key, values in fields.items()},
+        parse_warnings=parse_warnings,
+    )
+
+
+def looks_like_medline(data: bytes) -> bool:
+    """True for PubMed's tagged MEDLINE / .nbib export (``PMID- 12345``)."""
+
+    try:
+        text, _ = decode_text(data[:200_000])
+    except ParseError:
+        return False
+    return bool(MEDLINE_START_RE.search(text))
+
+
+def parse_medline(
+    data: bytes, file_id: str, filename: str
+) -> tuple[list[ArticleRecord], dict[str, Any]]:
+    """Parse PubMed's tagged MEDLINE format (also saved as .nbib).
+
+    Each record starts at a ``PMID-`` line. Tags occupy the first four
+    columns followed by ``- ``; continuation lines are indented. Repeated tags
+    (AU, FAU, PT, AID, ...) are retained in order.
+    """
+
+    text, encoding = decode_text(data)
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    raw_records: list[dict[str, list[str]]] = []
+    current: dict[str, list[str]] | None = None
+    last_tag: str | None = None
+    orphan_lines = 0
+    for line in text.split("\n"):
+        if not line.strip():
+            continue
+        match = MEDLINE_TAG_RE.match(line)
+        if match and not line.startswith(" "):
+            tag, value = match.group(1).strip(), match.group(2).strip()
+            if tag == "PMID":
+                if current:
+                    raw_records.append(dict(current))
+                current = defaultdict(list)
+            if current is None:
+                orphan_lines += 1
+                continue
+            current[tag].append(value)
+            last_tag = tag
+            continue
+        if current is not None and last_tag and current.get(last_tag):
+            current[last_tag][-1] = f"{current[last_tag][-1]} {line.strip()}"
+        else:
+            orphan_lines += 1
+    if current:
+        raw_records.append(dict(current))
+    if not raw_records:
+        raise ParseError("The file does not contain MEDLINE records (no PMID- lines).")
+    warnings = []
+    if orphan_lines:
+        warnings.append(f"{orphan_lines} line(s) outside a MEDLINE record were ignored.")
+    records = [
+        _medline_to_record(fields, file_id, filename, index)
+        for index, fields in enumerate(raw_records, start=1)
+    ]
+    return records, {
+        "encoding": encoding,
+        "logical_items": len(raw_records),
+        "parsed_records": len(records),
+        "blank_rows": 0,
+        "preamble_rows": 0,
+        "warnings": warnings,
+    }
+
+
+def _medline_to_record(
+    fields: dict[str, list[str]], file_id: str, filename: str, row_number: int
+) -> ArticleRecord:
+    title = _first_value(fields, ("TI", "BTI"))
+    authors_list = fields.get("AU") or fields.get("FAU") or []
+    authors = "; ".join(value for value in authors_list if value)
+    doi = ""
+    for value in fields.get("AID", []) + fields.get("LID", []):
+        if "[doi]" in value.casefold():
+            doi = _extract_doi(value)
+            if doi:
+                break
+    if not doi:
+        doi = _extract_doi(" ".join(fields.get("AID", []) + fields.get("LID", [])))
+    article_number = ""
+    for value in fields.get("LID", []):
+        if "[pii]" in value.casefold() and not _extract_doi(value):
+            article_number = value.split("[", 1)[0].strip()
+            break
+    issn_text = "; ".join(fields.get("IS", []))
+    issn, isbn = _extract_identifiers(issn_text)
+    if fields.get("ISBN"):
+        _, isbn = _extract_identifiers("; ".join(fields["ISBN"]))
+    year_source = _first_value(fields, ("DP", "DEP", "EDAT"))
+    publication_type = "; ".join(fields.get("PT", []))
+    parse_warnings: list[str] = []
+    if not title:
+        parse_warnings.append("No title tag (TI/BTI) was found.")
+    if year_source and not _extract_year(year_source):
+        parse_warnings.append(f"Year value could not be normalized: {year_source!r}.")
+    return ArticleRecord(
+        record_id=uuid.uuid4().hex,
+        source_file_id=file_id,
+        source_filename=filename,
+        source_table_id=f"{file_id}:medline",
+        source_sheet=None,
+        source_row=row_number,
+        title=title,
+        year=_extract_year(year_source),
+        first_author=_first_author_last_name(authors_list[0] if authors_list else ""),
+        authors=authors,
+        doi=doi,
+        journal=_first_value(fields, ("JT", "TA")),
+        pages=_extract_pages(_first_value(fields, ("PG",))),
+        article_number=article_number,
+        issn=issn,
+        isbn=isbn,
+        abstract=_joined_values(fields, ("AB",)),
         publication_type=publication_type,
         raw_fields={key: list(values) for key, values in fields.items()},
         parse_warnings=parse_warnings,

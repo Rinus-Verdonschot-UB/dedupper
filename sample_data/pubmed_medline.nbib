@@ -1,0 +1,31 @@
+PMID- 38000001
+OWN - NLM
+STAT- MEDLINE
+DP  - 2024 Mar 12
+TI  - Remote ischaemic conditioning after acute myocardial infarction: a randomised
+      controlled trial.
+PG  - 101-110
+LID - 10.1000/example.2024.001 [doi]
+AB  - BACKGROUND: Remote ischaemic conditioning may reduce infarct size.
+      METHODS: We randomly assigned patients.
+FAU - Jansen, Anne
+AU  - Jansen A
+FAU - de Vries, Pieter
+AU  - de Vries P
+LA  - eng
+PT  - Journal Article
+PT  - Randomized Controlled Trial
+TA  - Example J
+JT  - Example Journal of Cardiology
+IS  - 1234-5678 (Electronic)
+
+PMID- 38000002
+DP  - 2023 Nov 2
+TI  - Remote ischaemic conditioning after acute myocardial infarction: a randomised
+      controlled trial.
+LID - 10.1101/2023.11.01.23297811 [doi]
+FAU - Jansen, Anne
+AU  - Jansen A
+PT  - Preprint
+TA  - medRxiv
+JT  - medRxiv : the preprint server for health sciences

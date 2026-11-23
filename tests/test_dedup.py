@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dedupper.dedup import (
     analyze_duplicates,
+    analyze_records,
     apply_group_selections,
     conference_abstract_report,
     enrich_retained_records,
@@ -458,11 +459,19 @@ def test_mixed_methods_protocol_is_flagged_and_not_recommended() -> None:
         ),
     ]
 
-    groups = find_duplicate_groups(records)
+    # v0.8.0: a protocol and its results paper are different publications.
+    # They are linked as related records instead of grouped as duplicates, so
+    # neither can be removed automatically.
+    analysis = analyze_records(records)
 
-    assert len(groups) == 1
-    assert groups[0]["potential_protocol_record_ids"] == ["protocol"]
-    assert groups[0]["recommended_record_id"] == "study"
+    assert analysis["groups"] == []
+    assert len(analysis["related_links"]) == 1
+    link = analysis["related_links"][0]
+    assert set(link["record_ids"]) == {"study", "protocol"}
+    assert link["rule"] == "V1"
+    assert link["relationship"] == "Protocol and results publication"
+    assert analysis["versions"]["protocol"]["kind"] == "protocol"
+    assert analysis["versions"]["study"]["kind"] == "unspecified"
 
 
 def test_randomized_trial_protocol_variant_is_flagged() -> None:
@@ -482,11 +491,13 @@ def test_randomized_trial_protocol_variant_is_flagged() -> None:
         ),
     ]
 
-    groups = find_duplicate_groups(records)
+    analysis = analyze_records(records)
 
-    assert len(groups) == 1
-    assert groups[0]["potential_protocol_record_ids"] == ["protocol"]
-    assert groups[0]["recommended_record_id"] == "study"
+    assert analysis["groups"] == []
+    assert [set(link["record_ids"]) for link in analysis["related_links"]] == [
+        {"study", "protocol"}
+    ]
+    assert analysis["related_links"][0]["confidence"] == "likely"
 
 
 def test_duplicate_copies_of_protocol_are_not_contextually_flagged() -> None:
@@ -744,12 +755,15 @@ def test_protocol_metadata_is_not_copied_into_the_non_protocol_study() -> None:
             abstract="Protocol methods, not the final study abstract.",
         ),
     ]
-    groups = find_duplicate_groups(records, fuzzy_threshold=85)
-    assert groups[0]["potential_protocol_record_ids"] == ["protocol"]
-    selections = {groups[0]["group_id"]: ["study"]}
-    kept, _, final = apply_group_selections(records, groups, selections)
+    analysis = analyze_records(records, fuzzy_threshold=85)
+    groups = analysis["groups"]
+    assert groups == []
+    assert len(analysis["related_links"]) == 1
+    kept, _, final = apply_group_selections(records, groups, {})
 
     enriched, _ = enrich_retained_records(kept, records, groups, final)
 
-    assert enriched[0]["doi"] == ""
-    assert enriched[0]["abstract"] == ""
+    study = next(item for item in enriched if item["record_id"] == "study")
+    assert study["doi"] == ""
+    assert study["abstract"] == ""
+    assert len(enriched) == 2

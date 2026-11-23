@@ -6,7 +6,26 @@ TXT, CSV, TSV, XLS and XLSX files, asks the user to verify uncertain tabular
 mappings, builds a complete master dataset, reports per-file ingestion counts,
 and only then proposes duplicate groups.
 
-## What v0.7.0 does
+## New in v0.8.0
+
+See `CHANGELOG.md` for details and `DEPLOY_DSRI.md` for deployment.
+
+- Every record gets a **publication-version label** (journal article, preprint,
+  conference abstract/paper, protocol, trial registry record, thesis,
+  correction, retraction, commentary, reply, expression of concern) with the
+  evidence behind it.
+- Records of different versions are **never merged automatically**. They are
+  shown together as a related-publication family; every version is kept unless
+  the user excludes it.
+- Every decision carries a **rule ID** (see `/rules`) and a field-by-field
+  comparison. Near misses are listed with the reason they were kept apart.
+- Decision log and removed-records exports; extra decision columns in every
+  export.
+- Manual-review items can be resolved in the interface.
+- PubMed MEDLINE/.nbib import; automatic job expiry; Dockerfile, gunicorn and
+  OpenShift manifests.
+
+## What v0.7.0 does (still applies unless changed above)
 
 - Accepts 1–10 files in one upload (100 MB combined limit).
 - Parses RIS records while retaining repeated tags, continuation lines and the
@@ -107,7 +126,7 @@ key in each worker.
 
 ## OpenShift
 
-Set `DEDUPPER_SECRET_KEY` to a stable random value in the Deployment. Jobs are
+See `DEPLOY_DSRI.md` for the full procedure. In short: set `DEDUPPER_SECRET_KEY` to a stable random value in the Deployment. Jobs are
 currently stored on the container filesystem, so use one replica unless
 `JOB_ROOT` points to a persistent volume shared by all replicas:
 
@@ -157,7 +176,8 @@ malformed mapped values become record-level warnings rather than silent losses.
 ## Current boundaries
 
 Jobs are stored as JSON under
-`instance/jobs`, which makes the audit trail inspectable but is not intended
+`instance/jobs` (or `DEDUPPER_JOB_ROOT`) and deleted after
+`DEDUPPER_JOB_TTL_HOURS` (default 24), which makes the audit trail inspectable but is not intended
 for multi-user production scale. Fuzzy title grouping is conservative and
 should remain a reviewed candidate process. CSV files with several unrelated
 tables in one file are not automatically split. Old `.xls` files depend on

@@ -20,7 +20,7 @@
         input.id = `file-${index + 1}`;
         input.type = "file";
         input.name = "files";
-        input.accept = ".ris,.txt,.csv,.tsv,.xlsx,.xls";
+        input.accept = ".ris,.txt,.nbib,.csv,.tsv,.xlsx,.xls";
         input.required = true;
         if (files[index] && files[index].length) {
           try {
